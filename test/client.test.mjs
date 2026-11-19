@@ -93,6 +93,15 @@ test('FIELD_IDS matches the backend RUNTIME_KEYS exactly', () => {
   assert.deepEqual([...FIELD_IDS].sort(), [...RUNTIME_KEYS].sort())
 })
 
+test('every field is classified by exactly one control type', () => {
+  const { exported } = loadClient()
+  const { FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SELECTS, SPECIAL_FIELDS } = exported.__test
+  const classified = [...BOOL_FIELDS, ...TEXT_FIELDS, ...SELECTS.map(item => item.id), ...SPECIAL_FIELDS]
+  // 分类表漏一个字段 → 表单渲染不出它，保存时 toPayload 也拿不到它。
+  assert.deepEqual(classified.slice().sort(), [...FIELD_IDS].sort())
+  assert.equal(new Set(classified).size, classified.length, '字段被重复分类')
+})
+
 test('every field has a label in both languages', () => {
   const { exported } = loadClient()
   const { DICT, FIELD_IDS } = exported.__test

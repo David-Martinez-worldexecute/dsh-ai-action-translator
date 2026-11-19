@@ -13,6 +13,7 @@ import { rejectionFor, authorityOf, isLoopbackHost } from '../lib/trust.js'
 import { createConfigServer, validateOverrides, sanitizeOverrides, readJson, LogRing, RUNTIME_KEYS } from '../lib/server.js'
 import { CONFIG_PAGE_HTML } from '../lib/page.js'
 import { PRESETS, PRESET_IDS, presetPatch, presetList } from '../lib/presets.js'
+import { Config } from '../lib/index.js'
 
 function tmpHome() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'aat-mod-'))
@@ -280,6 +281,51 @@ test('CONFIG_PAGE_HTML has no CDN or external network references', () => {
 test('RUNTIME_KEYS never contains structural keys', () => {
   assert.equal(RUNTIME_KEYS.includes('enabled'), false)
   assert.equal(RUNTIME_KEYS.includes('order'), false)
+})
+
+/**
+ * 字段表一致性守卫。
+ *
+ * 背景：0.4.0 的 stepParse 在 lib/index.js 里有完整实现（Config、normalize、提示词拼接），
+ * 却没进 RUNTIME_KEYS / FIELD_IDS / 面板脚本 / 预设 / YAML —— 界面上看不见它，也改不了它，
+ * 等于这条能力不存在。这里把「新增一个字段要接通的四层」钉死：
+ * Config 的运行时字段 == 后端白名单 == 面板上的控件 == 面板的分类表。
+ */
+test('every runtime Config field reaches the backend whitelist and the served page', () => {
+  const structural = ['enabled', 'order']
+  // Config.dict 是 schemastery 的字段字典。它若改了内部结构，这条会先红 ——
+  // 比字段悄悄漂移、用户在界面上改不到要好。
+  const fields = Object.keys(Config.dict).filter(key => !structural.includes(key))
+
+  assert.deepEqual([...RUNTIME_KEYS].sort(), fields.slice().sort())
+
+  // 每个字段都必须真的渲染出一个控件，否则面板上根本改不到它。
+  for (const key of fields) {
+    assert.match(CONFIG_PAGE_HTML, new RegExp(`id=['"]${key}['"]`), `lib/page.js 缺少 ${key} 的控件`)
+  }
+
+  // 控件要进分类表，collect() 才知道怎么取值；digestSize / sensitiveTools 走单独分支。
+  const grouped = []
+  for (const name of ['CHECK', 'TEXT', 'SELECT']) {
+    const found = new RegExp(`var ${name} = \\[([^\\]]*)\\]`).exec(CONFIG_PAGE_HTML)
+    assert.ok(found, `lib/page.js 应定义 var ${name} = [...]`)
+    for (const item of found[1].matchAll(/'([^']+)'/g)) grouped.push(item[1])
+  }
+  const special = ['digestSize', 'sensitiveTools']
+  assert.deepEqual([...grouped, ...special].sort(), fields.slice().sort())
+})
+
+test('every preset opens the step-by-step parse switch', () => {
+  // 三档预设都打开 stepParse：让人看懂 AI 在做什么，是这个插件的存在理由。
+  // 嫌啰嗦的用户可以在面板上单独关掉，不必为此换一个预设。
+  for (const entry of PRESETS) {
+    assert.equal(entry.patch.stepParse, true, `${entry.id} 预设应默认打开 stepParse`)
+  }
+})
+
+test('cordis.patch.yml ships the step-by-step parse default', () => {
+  const yml = fs.readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
+  assert.match(yml, /^\s*stepParse: true$/m)
 })
 
 /**

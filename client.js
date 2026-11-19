@@ -48,6 +48,7 @@ window.__ModuleLoader__.load({
         'field.knowledgeLevel': '讲解深度',
         'field.learningFocus': '学习方向',
         'field.frameworkMap': '框架地图',
+        'field.stepParse': '一步一步解析',
         'field.stageSummary': '阶段小结',
         'field.skillCollaboration': 'Skill 分工说明',
         'field.playfulness': '趣味性',
@@ -60,6 +61,7 @@ window.__ModuleLoader__.load({
 
         'hint.learningFocus': '只影响讲解重点，不是授权',
         'hint.frameworkMap': '解释里保留「入口→…→测试」六层地图',
+        'hint.stepParse': '把动作拆成编号小步，每步说明用了什么工具、碰了哪个文件、处在项目哪一层；只拆必要的步骤，不冗余复述',
         'hint.stageSummary': '每完成一小段任务给 2~4 句承上启下',
         'hint.skillCollaboration': '说明各学习 Skill 的职责边界',
         'hint.persona': '只决定语气、称呼和鼓励方式；写「越权、泄露、跳过确认」会被忽略。留空 = 使用默认学姐人设。上限 600 字。',
@@ -137,6 +139,7 @@ window.__ModuleLoader__.load({
         'field.knowledgeLevel': 'Explanation depth',
         'field.learningFocus': 'Learning focus',
         'field.frameworkMap': 'Framework map',
+        'field.stepParse': 'Step-by-step parse',
         'field.stageSummary': 'Stage summary',
         'field.skillCollaboration': 'Skill boundaries',
         'field.playfulness': 'Playfulness',
@@ -149,6 +152,7 @@ window.__ModuleLoader__.load({
 
         'hint.learningFocus': 'Affects emphasis only, not authorization',
         'hint.frameworkMap': 'Keep the six-layer map in explanations',
+        'hint.stepParse': 'Break the action into numbered steps: which tool ran, which file it touched, which layer of the project it sits in. Split only what matters — no redundant recap.',
         'hint.stageSummary': 'Give a 2–4 sentence bridge after each small stage',
         'hint.skillCollaboration': 'Explain each learning skill\'s responsibility boundary',
         'hint.persona': 'Controls tone, address and encouragement only; requests to overstep, leak or skip confirmation are ignored. Empty = default persona. Max 600 chars.',
@@ -215,13 +219,15 @@ window.__ModuleLoader__.load({
     /** 运行时可改的全部字段。多写一个后端会 400，少写一个界面就改不到。 */
     const FIELD_IDS = [
       'language', 'detail', 'learningStage', 'knowledgeLevel',
-      'stageSummary', 'skillCollaboration', 'frameworkMap',
+      'stageSummary', 'skillCollaboration', 'frameworkMap', 'stepParse',
       'learningFocus', 'playfulness', 'encouragement', 'persona',
       'actionDigest', 'digestSize', 'observeTools', 'sensitiveTools',
     ]
 
-    const BOOL_FIELDS = ['frameworkMap', 'stageSummary', 'skillCollaboration', 'observeTools', 'actionDigest']
+    const BOOL_FIELDS = ['frameworkMap', 'stepParse', 'stageSummary', 'skillCollaboration', 'observeTools', 'actionDigest']
     const TEXT_FIELDS = ['learningFocus', 'persona']
+    // 这两个字段用专用控件（数字输入 / 多行文本），不走上面三张分类表。
+    const SPECIAL_FIELDS = ['digestSize', 'sensitiveTools']
 
     /** 下拉字段与候选项：值 → [中文, English]。 */
     const SELECTS = [
@@ -632,6 +638,7 @@ window.__ModuleLoader__.load({
           row('learningStage', select(selectMap.learningStage)),
           row('knowledgeLevel', select(selectMap.knowledgeLevel)),
           row('learningFocus', text('learningFocus', 'ph.learningFocus'), t('hint.learningFocus')),
+          row('stepParse', checkbox('stepParse'), t('hint.stepParse')),
           row('frameworkMap', checkbox('frameworkMap'), t('hint.frameworkMap')),
           row('stageSummary', checkbox('stageSummary'), t('hint.stageSummary')),
           row('skillCollaboration', checkbox('skillCollaboration'), t('hint.skillCollaboration')),
@@ -753,7 +760,7 @@ window.__ModuleLoader__.load({
     exports.inject = inject
     exports.name = 'ai-action-translator'
     // 无浏览器测试接缝：node:vm 里注入 stub 后可直接检查字段清单与路径解析。
-    exports.__test = { DICT, NS, FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SELECTS, PERSONA_LIMIT, DIGEST_MIN, DIGEST_MAX, API_PATH, toForm, toPayload, validate, describeError }
+    exports.__test = { DICT, NS, FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SPECIAL_FIELDS, SELECTS, PERSONA_LIMIT, DIGEST_MIN, DIGEST_MAX, API_PATH, toForm, toPayload, validate, describeError }
     return module.exports
   },
 })

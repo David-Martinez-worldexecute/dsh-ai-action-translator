@@ -13,6 +13,7 @@
         stageSummary: true
         skillCollaboration: true
         frameworkMap: true
+        stepParse: true
         learningFocus: "基础动作翻译、Agent工具循环、项目入口与代码结构"
         playfulness: gentle
         encouragement: active

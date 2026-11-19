@@ -1,6 +1,6 @@
 {
   "name": "dsh-ai-action-translator",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A DSH plugin that turns agent tool calls into beginner-friendly explanations, so learners can follow what the AI is doing and why.",
   "license": "MIT",
   "author": "David-Martinez-worldexecute",
@@ -43,6 +43,9 @@
   },
   "dsh": {
     "manifestVersion": 1,
+    "engines": {
+      "dsh": ">=0.2.2-rc.3"
+    },
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
