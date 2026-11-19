@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "AI Action Translator",
-    "description": "Turns an agent's tool calls into beginner-friendly explanations, so learners can follow what the AI is doing, why, and how to change course mid-way.",
+    "description": "Turns an agent's tool calls into beginner-friendly explanations, one numbered step at a time: which tool ran, which file it touched, which layer of the project it sits in — so learners can follow what the AI is doing, why, and how to change course mid-way.",
     "detail": "docs/DETAIL.md"
   }
 }

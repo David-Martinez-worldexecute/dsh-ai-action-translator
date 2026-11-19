@@ -2,6 +2,10 @@
 
 > A DSH plugin that turns what an AI agent is doing into plain language — and tells you, at every step, that you can still change direction.
 
+![AI 动作翻译器配置面板](docs/screenshot.png)
+
+<sub>配置面板实拍：学习区第一行就是「一步一步解析」。图为本地离线预览快照（不联网，数据为演示值）。</sub>
+
 **English summary** — This DeepSeek Harness (DSH) plugin injects a fixed instruction section into the agent's system prompt. From then on, the agent explains its own observable actions — tool calls, shell commands, file reads and writes, dependency installs, service starts, and error handling — in beginner-friendly language, before and after each action. It also marks, at every verifiable step, that you can still interrupt and change course, and states what changing your mind would cost at that moment. A small GUI panel personalises how much explanation you get. It registers **no tools**, intercepts **nothing**, makes **no network calls**, reads and writes **none of your project files**, and never executes actions on its own. All of its tests run offline with `npm test`.
 
 ---
@@ -31,6 +35,7 @@
 | 能力 | 说明 |
 |---|---|
 | 动作翻译 | 工具调用前说清「要做什么、为什么、影响」，返回后说清「实际发生了什么、对下一步意味着什么」 |
+| **一步一步解析** | `stepParse`（默认开）：把动作拆成编号小步，每步点明用了什么工具、碰了哪个文件、处在项目哪一层；只拆必要步骤，不冗余复述。这是「看懂 AI 怎么干活」最直接的一层 |
 | **中途介入** | 每完成一个可验证小步就标出「现在可以打断我」，并说明此刻改方向的最小代价；你换目标时它先复述放弃了什么 |
 | 分级讲解 | `knowledgeLevel` 四档：`plain` 全白话、`guided` 边做边学、`balanced` 白话+术语+机制、`deep` 追到调用链 |
 | 项目地图 | 用固定六层地图定位每个动作：入口/启动点 → 配置与依赖 → 核心模块 → 工具/服务边界 → 输出/界面 → 测试与验证 |
@@ -67,7 +72,7 @@
 
 所以：**不要期待装到其他 Agent 工具上能用。** 移植需要重写宿主适配层，不是改个配置。
 
-版本要求：DSH `manifestVersion: 1`；Node.js ≥ 20。
+版本要求：DSH Desktop ≥ 0.2.2-rc.3（由 `package.json` 的 `dsh.engines.dsh` 声明；未在更低版本上验证，不承诺行为一致）；`manifestVersion: 1`；Node.js ≥ 20。
 
 ---
 
@@ -78,8 +83,32 @@
 ```bash
 git clone https://github.com/David-Martinez-worldexecute/dsh-ai-action-translator.git
 cd dsh-ai-action-translator
-npm install          # 仅安装开发依赖（运行期依赖由 DSH 提供）
+npm ci            # 按 package-lock 精确安装开发依赖（运行期依赖由 DSH 提供）
 ```
+
+### Windows 一键安装（本机）
+
+仓库自带 `scripts/install-local.ps1`：把当前工作区同步到 `~/.dsh/plugins/dsh-ai-action-translator`，**先备份旧版本**，再读回校验版本号与三处 `stepParse` 入口（`lib/page.js` / `client.js` / `cordis.patch.yml`），最后做一次语法检查。
+
+```powershell
+# 在仓库根目录执行；先只看检查结果，不写磁盘
+pwsh -File scripts/install-local.ps1 -DryRun
+
+# 确认无误后真装（旧版本会备份成 ...bak-<时间戳>）
+pwsh -File scripts/install-local.ps1
+```
+
+脚本**不**改 profile 的 `package.json`，也**不**替你重启 DSH——那一步需要你自己决定（插件在启动时加载，替换已装包必须重启才生效）。
+
+回滚：
+
+```powershell
+# 备份目录名见脚本输出
+Rename-Item ~\.dsh\plugins\dsh-ai-action-translator ~\.dsh\plugins\dsh-ai-action-translator.bad
+Rename-Item ~\.dsh\plugins\dsh-ai-action-translator.bak-<时间戳> ~\.dsh\plugins\dsh-ai-action-translator
+```
+
+### 手动安装
 
 在 DSH profile 的 `package.json` 里以本地链接方式引用：
 
@@ -95,6 +124,25 @@ npm install          # 仅安装开发依赖（运行期依赖由 DSH 提供）
 
 > ⚠️ 修改官方 profile 前请先备份。`enabled: false` 时插件完全不注册。
 
+## 使用技巧
+
+按「第一次装」到「长期用」排序，每条都能立刻验证。
+
+| 场景 | 怎么做 | 为什么有效 |
+|---|---|---|
+| 第一次装好 | 先点「有基础」预设，再确认「一步一步解析」是开的 | 预设只**叠加**、不重置，所以你能先拿到一套能跑的基线，再单独微调介意的项 |
+| 某一步看不懂 | 把「讲解深度」调到 `deep`，下一轮再看同一条动作 | 深度档会追到调用链；不用重装，改完下一轮生效 |
+| 觉得太啰嗦 | 只关「一步一步解析」，别关整段 | 编号拆解是最占篇幅的一层；关掉后仍保留动作前/后两段翻译 |
+| 想确认它真在工作 | 打开「运行统计」，看已观察工具调用数是否在涨 | 那是只读计数，不依赖模型的自我报告 |
+| 想确认改对了 | 用「试一下 → 生成一段样例」 | 它用当前配置**真实生成**提示词段落，所见即下一轮模型所得，不是假预览 |
+| 换电脑 / 团队统一 | 「导出配置」存 JSON，另一台「导入配置」 | 配置就是 JSON，可进版本库；不含任何密钥 |
+| 怕摘要读到敏感参数 | 在「敏感工具名单」加工具名前缀（如 `git*`） | 命中后参数在摘要里只显示「已省略」，但工具调用本身照常执行 |
+
+两个容易踩的坑：
+
+- **改完要等下一轮**：配置存到 `~/.dsh/ai-action-translator/settings.json`，经动态上下文段生效，**不需要重启 DSH**；但当前这一轮已经发出去的提示词不会回溯改变。
+- **不要去手敲面板网址**：`/api/ai-action-translator/` 走的是 DSH 内核鉴权，直接访问会 401。入口在设置页分区里。
+
 ## 配置项
 
 | 配置项 | 类型 | 默认 | 说明 |
@@ -106,6 +154,7 @@ npm install          # 仅安装开发依赖（运行期依赖由 DSH 提供）
 | `learningStage` | `foundation` \| `framework` \| `runtime` \| `code` | `framework` | 学习阶段起点 |
 | `knowledgeLevel` | `plain` \| `guided` \| `balanced` \| `deep` | `guided` | 知识量档位 |
 | `frameworkMap` | bool | `true` | 是否给六层项目地图 |
+| `stepParse` | bool | `true` | 是否把动作拆成编号小步（一步一步解析） |
 | `stageSummary` | bool | `true` | 是否做阶段小结 |
 | `skillCollaboration` | bool | `true` | 是否说明各 Skill 分工 |
 | `learningFocus` | string ≤240 | — | 当前想学的方向 |
@@ -142,15 +191,15 @@ npm install          # 仅安装开发依赖（运行期依赖由 DSH 提供）
 ## 验证
 
 ```bash
-npm install     # 首次需要，安装开发依赖
-npm run verify  # 语法检查 + 49 项测试 + 隐私扫描
+npm ci     # 首次需要，按 lock 精确安装开发依赖
+npm run verify  # 语法检查 + 61 项测试 + 隐私扫描
 ```
 
 单独跑：
 
 ```bash
 npm run check           # 6 个源文件语法检查
-npm test                # 49 项测试
+npm test                # 61 项测试
 npm run check:privacy   # 扫描是否误提交本机路径/密钥
 ```
 
@@ -178,6 +227,18 @@ npm run check:privacy   # 扫描是否误提交本机路径/密钥
 ├── SKILL.md         # 可选的详细学习规则（给 Agent 看的）
 └── README.md
 ```
+
+## 路线图
+
+按「对学习者的价值」排，不按实现难度排。
+
+- [ ] **动作时间线** —— 把一轮对话里的工具调用按时间排成可回看的列表（仍只读，不拦截）
+- [ ] **术语卡片** —— 某个术语第一次出现时就地给一句话解释，而不是塞进长段落
+- [ ] **失败案例库** —— 把「报错 → 分层定位 → 下次怎么避免」沉淀成可复用片段（只存本地，不外发）
+- [ ] **英文文档对齐** —— `docs/DETAIL.md` 与 `SKILL.md` 目前只有中文，英文用户只能读 README 摘要
+- [ ] **版本矩阵** —— 在 CI 里对 `dsh.engines.dsh` 声明的下限做一次真实装载验证
+
+已明确**不做**的：接管工具执行、拦截或改写结果、联网检索、跨项目读文件。理由见上面「它不做什么」。
 
 ## 贡献
 

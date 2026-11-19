@@ -5,6 +5,23 @@
 
 ## [未发布]
 
+## [0.5.0] — 2026-11-19
+
+### 新增
+
+- **一步一步解析（`stepParse`，默认开）**：把动作拆成编号小步，每步点明用了什么工具、碰了哪个文件、处在项目哪一层，只拆必要步骤、不冗余复述。提示词中英各一节其实 0.4.0 就写进了 `lib/index.js`，但没接到配置白名单、界面、预设和 YAML——用户在面板上看不见、也存不进去（服务端会按未知字段回 400）。这次把六层入口补齐：`Config` → `server.js` 的 `RUNTIME_KEYS` → `client.js` 的 `FIELD_IDS` / `BOOL_FIELDS` → 设置页分区与独立页共用的控件 → 三档预设 → `cordis.patch.yml`。
+- **字段一致性守卫**：新增 3 条服务端测试 + 1 条客户端测试，强制「`Config` 里每个运行时字段都必须出现在后端白名单、服务端页面控件、以及某一张控件分类表里」；预设三档必须打开 `stepParse`；YAML 必须带 `stepParse: true`。这类断层以前只能靠人读注释保，现在靠断言。
+
+### 变更
+
+- 版本 `0.4.0` → `0.5.0`（`package.json` / `package-lock.json` / `lib/page.js` 的 `PAGE_VERSION` 三处同步，防漂移测试会盯）。
+- `client.js` 新增 `SPECIAL_FIELDS`（`digestSize` / `sensitiveTools`）：把「用专用控件的字段」显式声明出来，不再由测试硬编码名字。
+- README / DETAIL / SKILL / `locale/*.json` 同步「一步一步解析」这项能力与测试总数。
+
+### 工程
+
+- 测试总数 49 → 61（modules 30 / plugin 18 / client 13）。
+
 ## [0.4.0] — 2026-11-19
 
 ### 新增
