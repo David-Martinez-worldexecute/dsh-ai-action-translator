@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .qwen/hooks/aiact-guard.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}

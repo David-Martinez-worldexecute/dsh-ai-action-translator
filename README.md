@@ -68,9 +68,13 @@
 
 ## 适配范围
 
-**只适用于 DeepSeek Harness（DSH）。**
+这件事分两层，先说清哪一层能给你什么——别把两层的承诺混在一起看。
 
-这不是「目前只测过 DSH」，而是**结构上无法用于其他工具**——它依赖三样 DSH 独有的东西：
+### 第一层：DSH 原生插件（完整形态）
+
+在 DeepSeek Harness 里它是完整形态：提示词注入、设置面板、侧栏常驻面板、事前守门、多 Agent 名册、学习练习册、动作时间线与失败案例库。
+
+**插件本体**依赖三样 DSH 独有的东西：
 
 | 依赖 | 用途 | 别的工具有没有 |
 |---|---|---|
@@ -78,7 +82,22 @@
 | `settings.section` UI 槽位 | 把配置面板挂进设置页 | ❌ 这是 DSH 的 Client Slots 机制 |
 | `~/.dsh/` 数据目录与 `ctx.inject(['webServer'])` | 存配置、挂路由 | ❌ DSH 的服务与目录约定 |
 
-所以：**不要期待装到其他 Agent 工具上能用。** 移植需要重写宿主适配层，不是改个配置。
+这三样是 API，不是配置项——所以**插件本体装不到别的 Agent 工具上**，这一点没有变。
+
+### 第二层：`adapters/` 多宿主适配层（部分能力）
+
+为了在别的宿主上也有「动作翻译 + 事前守门」，仓库里另有一层 `adapters/`：一套**宿主无关**的判定核心（`adapters/_core/`）+ 每个宿主一个薄壳（配置 + 钩子脚本 + 提示词）。
+
+| 宿主 | 动作前拦截 | 提示词写到 | 说明 |
+|---|---|---|---|
+| Claude Code | ✅ 可阻断 | `CLAUDE.md` | `PreToolUse` 钩子返回 deny |
+| CodeBuddy / WorkBuddy | ✅ 可阻断 | `AGENTS.md` | 同一份钩子，外面多包一层 `hookSpecificOutput` |
+| Qwen Code（千问） | ⚠️ 有钩子，JSON 结构未核实 | `QWEN.md` | 按最保守通路写（退出码 2），装好请自测 |
+| Codex | ❌ 没有可挂的钩子 | `AGENTS.md` | 只有提示词，**不假装能拦** |
+
+**「动作前拦截」那一列是唯一值得仔细看的地方**：能拦的宿主会在命令真正执行**之前**返回 deny；不能拦的宿主只有提示词，模型可以不理它。这一层**没有**设置面板、侧栏、名册、练习册——它是「动作翻译 + 守门」的移植，不是整个插件的移植。
+
+两层的规则出处是同一个 `lib/guard.js`，`adapters/_core/policy.json` 由脚本从它生成，改规则只需改一处。装法见 [`adapters/README.md`](adapters/README.md)。
 
 版本要求：DSH Desktop ≥ 0.2.2-rc.3（由 `package.json` 的 `dsh.engines.dsh` 声明；未在更低版本上验证，不承诺行为一致）；`manifestVersion: 1`；Node.js ≥ 20。
 
@@ -212,20 +231,21 @@ Rename-Item ~\.dsh\plugins\dsh-ai-action-translator.bak-<时间戳> ~\.dsh\plugi
 
 ```bash
 npm ci     # 首次需要，按 lock 精确安装开发依赖
-npm run verify  # 语法检查 + 134 项测试 + 隐私扫描
+npm run verify  # 语法检查 + 146 项测试 + 适配层漂移检查 + 隐私扫描
 node scripts/load-smoke.mjs   # 假宿主装载冒烟（可选，单独跑）
 ```
 
 单独跑：
 
 ```bash
-npm run check           # 13 个源文件语法检查
-npm test                # 134 项测试
+npm run check           # 19 个源文件语法检查
+npm test                # 146 项测试
+npm run check:adapters  # 适配层与 lib/guard.js 是否漂移（只比对，不写盘）
 npm run check:privacy   # 扫描是否误提交本机路径/密钥
 node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具事件 / 面板应答 / 卸载清理
 ```
 
-七组测试的分工：
+八组测试的分工：
 
 - `test/plugin.test.mjs` —— 插件契约：`apply()` 注册了哪些段、默认值、`enabled: false` 时不注册
 - `test/modules.test.mjs` —— 服务端模块：store 原子写入与损坏隔离、回环围栏、路由与 400、日志环，文档回归（README/SKILL/page 不得教用户手敲那个必然 401 的网址），以及「`activity()` 的每个字段都必须穿过 `/activity` 的响应白名单」——这条是因为 0.7.0 真的漏过一次：数据层加了、出口层没加，测试全绿而面板永远拿到 `undefined`
@@ -234,6 +254,7 @@ node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具
 - `test/guard.test.mjs` —— 事前守门：递归删除 / 关机 / 改权限 / 读凭据 / 破坏性 git 必须命中；装依赖 / 停服务 / 联网 / 覆盖写按 `guardLevel` 分流；`warn` 绝不返回 deny；写系统目录只对写类工具报；带 `quiet` 的规则默认静音、`includeQuiet` 才出声；参数被 JSON 转义过（`C:\\Windows`）时也要认得出
 - `test/agents.test.mjs` —— 多 Agent 名册：身份归一化（`agent.id` 缺失时回落 session header）、字段白名单、`born` / `gone` / `touch` 计数、超上限丢最早、`list()` 返回副本（调用方改不坏内部状态）
 - `test/drill.test.mjs` —— 学习练习册：`drillEvery` 收敛（`null` / `undefined` / 空串算「没给」，不是「给了 0」）、攒够就出卡且同一批只出一张（幂等）、窗口裁剪时已出卡计数跟着回落、卡里只引用真发生过的动作
+- `test/adapters.test.mjs` —— 多宿主适配：三家的 `settings.json` 必须是**纯 JSON**（里面不能有 `//` 注释——宿主 `JSON.parse` 失败时通常「当作没配」，钩子就静默失效了，这条是 0.8.0 真踩过的坑）、真喂 stdin 跑钩子脚本（`rm -rf build` → deny，`npm test` → 零输出）、各家回复信封形状正确（Claude 顶层 / CodeBuddy 套 `hookSpecificOutput` / Qwen 靠退出码 2）、`mode: 'off'` 与坏 policy / 坏 stdin 都 fail-open 且把原因写进 stderr、`_core/` 里不许出现任何宿主名、生成器幂等
 
 ## 项目结构
 
@@ -257,7 +278,9 @@ node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具
 ├── scripts/
 │   ├── privacy-check.mjs  # 隐私检查器
 │   └── load-smoke.mjs     # 假宿主装载冒烟（CI 里跑）
-├── test/            # 七组测试（插件契约 / 模块 / 浏览器半身 / 动作回看 / 守门 / 名册 / 练习册）
+├── test/            # 八组测试（插件契约 / 模块 / 浏览器半身 / 动作回看 / 守门 / 名册 / 练习册 / 多宿主适配）
+├── adapters/        # 多宿主适配层（生成物）：_core 宿主无关判定 + claude-code / codebuddy / qwen-code / codex
+├── tools/           # 生成器：build-policy.mjs（guard.js → policy.json）、build-adapters.mjs（渲染各宿主薄壳）
 ├── SKILL.md         # 可选的详细学习规则（给 Agent 看的）
 └── README.md
 ```
@@ -276,6 +299,7 @@ node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具
 - [x] **学习练习册** —— 攒够真实动作出一道复述卡，只引用真跑过的动作，同一批幂等
 - [x] **默认简洁 + 高级选项** —— 面板默认收起守门/白名单等进阶项，勾「高级选项」才展开
 - [x] **本轮装配说明** —— 每轮现算「哪些开关真的生效」，避免静态提示词段与运行时开关不一致
+- [x] **多宿主适配层** —— `adapters/` 四家薄壳（Claude Code / CodeBuddy·WorkBuddy / Qwen Code / Codex），共享同一个宿主无关 `_core` 判定；**能阻断的只有前三家，Codex 明确只有提示词，不假装能拦**；`settings.json` 必须是纯 JSON、钩子脚本出错一律 fail-open，两条都有测试钉住
 - [ ] **版本矩阵** —— 在 CI 里对 `dsh.engines.dsh` 声明的下限做一次**真实装载**验证（目前只有假宿主 smoke，不等于真装进 DSH）
 
 已明确**不做**的：接管工具执行、拦截或改写结果、联网检索、跨项目读文件。理由见上面「它不做什么」。

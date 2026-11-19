@@ -30,6 +30,7 @@ desktop.ini
 
 # ── 插件运行期数据（本机状态，不进仓库）──
 settings.json
+!adapters/**/settings.json
 .ai-action-translator/
 
 # ── 本地演示快照（preview/ 是看界面用的离线假后端与截图，不进仓库）──
