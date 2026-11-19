@@ -7,9 +7,21 @@
 ```bash
 git clone https://github.com/David-Martinez-worldexecute/dsh-ai-action-translator.git
 cd dsh-ai-action-translator
-npm install     # 只装开发依赖；运行期依赖由 DSH 宿主提供
-npm run verify  # 语法 + 49 测试 + 隐私扫描，三者都必须绿
+npm ci          # 严格按 package-lock.json 装；只装开发依赖，运行期依赖由 DSH 宿主提供
+npm run verify  # 语法 + 测试 + 隐私扫描，三者都必须绿
 ```
+
+> 用 `npm ci` 而不是 `npm install`：前者严格按 `package-lock.json` 还原依赖树，装出来的东西和 CI、和维护者本机一致。`npm install` 会顺手更新 lockfile，只在你有意升级依赖时用。
+
+## 关于 package-lock.json
+
+**它在仓库里，而且应该留着。** 理由有三条：
+
+1. 这个插件是通过 clone 安装的，不是从 npm 装 —— lockfile 是唯一能复现依赖树的东西
+2. CI 用 `npm ci`，没有 lockfile 就装不出来
+3. lockfile 里只有包名、版本、integrity hash 和公共 registry 地址，不含任何本机路径
+
+改动 lockfile 时请确认 diff 里只有你真正想改的那几个包。
 
 ## 三条硬规矩
 

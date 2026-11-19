@@ -1,0 +1,102 @@
+name: Bug 报告
+description: 面板打不开、设置不生效、提示词没出现等
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢你愿意花时间报问题。
+
+        **报之前请先确认一件事**：访问 `/api/ai-action-translator/` 直接看到 `401 dsh web authentication required` **不是 bug**。
+        这是 `dsh web` 内核的票据保护。面板只能在 DSH 设置页里打开。详见 README 的「图形面板」一节。
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: 插件版本
+      description: 在 `package.json` 里看 `version`，或看面板标题旁的版本徽章
+      placeholder: '例如 0.4.0'
+    validations:
+      required: true
+
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH 版本
+      description: DSH 界面里「关于」显示的版本号
+      placeholder: '例如 0.2.2-rc.3'
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node 版本
+      description: 终端里跑 `node -v` 的结果
+      placeholder: '例如 v22.11.0'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 实际发生了什么
+      description: 你看到的现象。有报错就原样贴出来，别复述。
+      placeholder: |
+        我点了保存，但下一轮对话里 AI 没有开始解释它的动作。
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 你期望发生什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 尽量写成别人能照着走一遍的步骤
+      placeholder: |
+        1. 打开 DSH 设置页 → AI 动作翻译器
+        2. 把 knowledgeLevel 改成 plain
+        3. 点保存
+        4. 新开一轮对话，让 AI 跑一条 shell 命令
+        5. 它没有解释
+    validations:
+      required: true
+
+  - type: textarea
+    id: verify-output
+    attributes:
+      label: npm run verify 的输出
+      description: |
+        如果你能进到插件目录，跑一次 `npm run verify` 并把结果贴在这里。
+        这一步能立刻区分「代码坏了」和「环境和我想的不一样」。
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 确认
+      options:
+        - label: 我已经搜过现有 issue，没有重复
+          required: true
+        - label: 我知道这个插件只适用于 DeepSeek Harness，不适用于其他 Agent 工具
+          required: true

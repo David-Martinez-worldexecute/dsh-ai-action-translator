@@ -1,8 +1,8 @@
 # AI Action Translator · AI 动作翻译器
 
-> A DSH plugin that turns what an AI agent is doing into plain language — for people who are still learning how computers and agents work.
+> A DSH plugin that turns what an AI agent is doing into plain language — and tells you, at every step, that you can still change direction.
 
-**English summary** — This DeepSeek Harness (DSH) plugin injects a fixed instruction section into the agent's system prompt. From then on, the agent explains its own observable actions — tool calls, shell commands, file reads and writes, dependency installs, service starts, and error handling — in beginner-friendly language, before and after each action. It also ships a small GUI panel for personalising how much explanation you get. It registers **no tools**, intercepts **nothing**, makes **no network calls**, reads and writes **none of your project files**, and never executes actions on its own. All of its tests run offline with `npm test`.
+**English summary** — This DeepSeek Harness (DSH) plugin injects a fixed instruction section into the agent's system prompt. From then on, the agent explains its own observable actions — tool calls, shell commands, file reads and writes, dependency installs, service starts, and error handling — in beginner-friendly language, before and after each action. It also marks, at every verifiable step, that you can still interrupt and change course, and states what changing your mind would cost at that moment. A small GUI panel personalises how much explanation you get. It registers **no tools**, intercepts **nothing**, makes **no network calls**, reads and writes **none of your project files**, and never executes actions on its own. All of its tests run offline with `npm test`.
 
 ---
 
@@ -13,6 +13,12 @@
 > AI 正在操作我的电脑，它到底在干什么？为什么这么做？报错了是什么意思？
 
 装上它之后，AI 每次动手前后都会用你能看懂的话解释一遍，同时把这次动作放回项目结构里告诉你它的位置。
+
+第二个问题很少有人明说，但一直存在：
+
+> 它已经在跑了，我现在还能改主意吗？改了要付出什么代价？
+
+所以它还会在每个可验证的小步骤上标出**「现在可以打断我」**，并说清此刻改变方向要付什么：还没写文件就是零成本，已经写入了就需要回滚备份。**决定的权力始终在你手上，插件只负责把选择摆到你面前。**
 
 ## 它给谁用
 
@@ -25,6 +31,7 @@
 | 能力 | 说明 |
 |---|---|
 | 动作翻译 | 工具调用前说清「要做什么、为什么、影响」，返回后说清「实际发生了什么、对下一步意味着什么」 |
+| **中途介入** | 每完成一个可验证小步就标出「现在可以打断我」，并说明此刻改方向的最小代价；你换目标时它先复述放弃了什么 |
 | 分级讲解 | `knowledgeLevel` 四档：`plain` 全白话、`guided` 边做边学、`balanced` 白话+术语+机制、`deep` 追到调用链 |
 | 项目地图 | 用固定六层地图定位每个动作：入口/启动点 → 配置与依赖 → 核心模块 → 工具/服务边界 → 输出/界面 → 测试与验证 |
 | 阶段小结 | 完成一个可验证小阶段后，用 2～4 句总结「完成了什么 / 在地图哪一层 / 仍未知 / 下一步」 |

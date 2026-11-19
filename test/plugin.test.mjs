@@ -85,6 +85,18 @@ test('knowledge levels change plain and deep explanations', () => {
   assert.notEqual(plain, deep)
 })
 
+test('the mid-way intervention section reaches both languages', () => {
+  const zh = buildSectionText({ language: 'zh', detail: 'thorough' })
+  const en = buildSectionText({ language: 'en', detail: 'thorough' })
+  assert.match(zh, /## 给用户留出中途介入的窗口/)
+  assert.match(zh, /现在可以打断我/)
+  assert.match(zh, /还没写文件，改主意零成本/)
+  assert.match(zh, /已写入，改主意需要回滚备份/)
+  assert.match(zh, /不要假装旧进度不存在/)
+  assert.match(en, /## Leave the user room to intervene mid-way/)
+  assert.match(en, /you can interrupt me now/)
+})
+
 test('stage summaries and skill collaboration are configurable', () => {
   const compact = buildSectionText({ language: 'zh', stageSummary: false, skillCollaboration: false })
   const learning = buildSectionText({ language: 'zh', stageSummary: true, skillCollaboration: true })

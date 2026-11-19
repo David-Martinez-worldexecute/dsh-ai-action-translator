@@ -18,7 +18,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22']
+        # 与 package.json 的 engines.node (>=20) 对齐：20 是最低支持线，
+        # 22 与 24 是当前 LTS 线。更高版本按 engines 视为受支持但未逐一测过。
+        node: ['20', '22', '24']
 
     steps:
       - name: Checkout
@@ -30,8 +32,10 @@ jobs:
           node-version: ${{ matrix.node }}
 
       # 本插件零运行时依赖；这一步只为拿到开发依赖 @deepseek-ai/schemastery。
+      # 用 npm ci 而不是 npm install：它严格按 package-lock.json 装，
+      # 装出来的依赖树与维护者本机一致，也让缓存失效可预测。
       - name: Install dev dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Syntax check
         run: npm run check
@@ -55,7 +59,7 @@ jobs:
           node-version: '22'
 
       - name: Install dev dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       # 确认发布包里没有 node_modules、没有多余文件。
       - name: npm pack dry run

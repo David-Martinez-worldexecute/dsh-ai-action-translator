@@ -1,0 +1,59 @@
+name: 功能建议
+description: 想让面板或提示词多做点什么
+title: '[Idea] '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先看一眼 README 的「它不做什么」——那里列的几条是**设计上刻意排除**的，不是还没做。
+        如果你的建议正好在那几条里，先说清为什么应该破例，我们才有得聊。
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 涉及哪部分
+      options:
+        - 提示词内容（AI 如何解释）
+        - 设置面板（DSH 设置页里的分区）
+        - 完整页面（服务端渲染面板）
+        - 配置预设 / 导入导出
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的是什么麻烦
+      description: 先说问题，再说方案。只说方案的话我们没法判断它值不值得做。
+      placeholder: |
+        我带到课上给学生用，但一个班有十几个人，
+        我没法一个个去改他们的配置。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望它怎么做
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 你考虑过的其他办法
+      description: 包括「现在临时怎么绕过这个问题」
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: 边界确认
+      options:
+        - label: 这个建议不需要插件联网、不需要读写我的项目文件
+          required: false
+        - label: 这个建议不需要插件注册新工具或接管工具执行
+          required: false
