@@ -5,6 +5,38 @@
 
 ## [未发布]
 
+## [0.7.0] — 2026-11-19
+
+### 新增
+
+- **事前守门（`guardMode` / `guardLevel` / `guardAllow` / `guardAllowTools` / `guardQuiet`，默认 `off`）**：在工具真正执行**之前**看一眼参数，认出 10 类高风险形状（递归删除 / 关机与改权限 / 读凭据 / 破坏性 git / 写系统目录 / 装依赖 / 停服务 / 外发网络 / 原地覆盖写文件），分 `warn`（提醒后照做）与 `deny`（真拦下，返回 deny 而不是拒绝服务）两档。`off` 时**连 `tools/pre-execute` 监听都不注册**，所以默认形态不碰执行链路、不增加任何延迟。守门只认参数里的字面特征，不猜意图，也不读文件内容。
+- **多 Agent 名册**：时间线与面板按 `exec.agent` 标出「这条动作是谁做的」。没有 agent 上下文（系统级调用）时**如实留空**，不猜成「主 agent」——看不见归属比看错归属安全。名册只存在内存里，只记 id / cwd / 计数，不落盘、不读对话内容、不拦子 agent。
+- **侧栏常驻面板**：在 DSH 右侧栏注册「动作回看」页签（`sidebar.right.pane.tab`），挂载时拉一次 `/activity`，给时间线、失败案例、术语卡片与 agent 归属。宿主没有 `sidebarRightTabs` 服务时**静默跳过**，设置页照常可用。
+- **学习练习册（`drill` / `drillEvery`，默认关 / 3）**：攒够 N 条**真实跑过**的动作就出一张三问卡（「你看到了什么」/「你能复述的技术点」/「下一步练习」），只引用时间线里真有的条目，并明确要求「上面没列出来的动作不要编」。卡片是幂等的：同一批动作只出一次，第二次返回空串。
+- **本轮装配说明**：静态提示词段是启动期拼好的，面板上关掉开关后那些文字仍留在提示词里，模型可能照讲。新增一个**每轮现算**的动态 context，明确写出「本轮生效什么、关掉了什么、关掉的不要主动讲」，并强调「无论开关怎么设，安全边界始终有效」。
+- **「默认简洁 + 高级选项」两档**：守门、练习册、规则与工具放行名单收进折叠的高级区（`advancedMode`），默认只露最常用的几个开关。
+
+### 修复
+
+- **守门规则 `in-place-overwrite` 永远静音不了**：`evaluateGuard` 没有读 `includeQuiet`，带 `quiet: true` 的规则在 `warn` 下每次写文件都会报一条，正好违背「写文件最高频、默认不报」的设计。
+- **「写到系统目录」规则永不命中**：`JSON.stringify` 把 `C:\Windows` 转义成 `C:\\Windows`，而规则正则只认单个反斜杠。现在把原文与反转义后的文本一起喂给正则。
+- **「读凭据」规则永不命中**：`read` 在跳过名单里被整体提前放行，而凭据泄露恰恰只发生在读类工具上。改为「跳过名单只跳过普通规则，标了 `alwaysCheck` 的规则照查」。
+- **`GET /activity` 把新字段全丢了**：路由是字段白名单转发，数据层加了 `guardRules` / `agents` / `agentSummary` / `drill` / `assemble`，出口层没加，面板和侧栏永远拿到 `undefined`。补进白名单并同步兜底默认值。
+- **`drillEveryOf(null)` 返回 2 而不是传入的 fallback**：`Number(null) === 0`。null / undefined / 空串现在视为「没给」，回落 fallback。
+- **`validate` 对缺省 `drillEvery` 误报**：老表单没有这个控件时算出 `NaN`，多报一条 problem；现在缺省回落 3（与 `toForm` / `toPayload` 一致，且 `toPayload` 不回落 0——0 会被后端收敛成下限 2）。
+
+### 变更
+
+- 运行时字段 **20 → 28**（`guardMode` / `guardLevel` / `guardAllow` / `guardAllowTools` / `guardQuiet` / `advancedMode` / `drill` / `drillEvery`）。
+- 提示词 context **2 → 4**（新增练习册卡与本轮装配说明，两者都是 `text` 函数、关掉时返回空串）。
+- `package.json` 的 `dsh.client.inject` 加入 `@deepseek-ai/dsh-client-ui-sidebar-right`。
+
+### 工程
+
+- 测试 **84 → 132 项**，七组：插件契约 18 / 模块 30 / 浏览器半身 13 / 动作回看 23 / 守门 21 / 名册 14 / 练习册 13。
+- `npm run check` 覆盖 **9 → 13 个源文件**（新增 `guard.js` / `agents.js` / `drill.js` / `assemble.js`）。
+- 装载冒烟扩到真的走一遍：订阅三个新事件、喂一个带 agent 的工具结果、调练习册 context 两次验幂等、调装配 context、用删除命令验 `warn` 放行、再重取 `/activity` 验 `live` 归零。
+
 ## [0.6.0] — 2026-11-19
 
 ### 新增

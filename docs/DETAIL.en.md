@@ -33,6 +33,11 @@ This plugin does not change what the AI does. It adds a human-readable layer bef
 | **Config presets** | Three presets — complete beginner, has some basics, deep diver. You do not have to tune all 20 fields by hand. |
 | **Export / import** | Save your configuration as JSON and move it between machines. |
 | **Runtime stats** | Observed actions, sensitive hits, previews, saves, uptime, and a ring buffer of the last 20 warnings and errors. |
+| **Pre-flight guard** | `guardMode`: before an action runs, it checks for high-risk shapes (recursive delete / power commands / permission changes / credential reads / destructive git / writes into system directories / dependency installs / service stops / outbound connections). `warn` only flags; `deny` actually blocks. It reads arguments and never rewrites them; with `off` it does not even subscribe. |
+| **Agent roster** | Every timeline row says *which* agent did it; the panel shows how many agents took part and how many are still live. System-level calls with no agent context are left blank rather than guessed as "the main agent". |
+| **Sidebar pane** | A right-sidebar tab — timeline, failure book, and term cards always one click away. Read-only review, still never injected into the prompt. |
+| **Learning drills** | `drill`: after `drillEvery` real actions it hands out one recall exercise (what you saw / the technical point / what to practise next), quoting only actions that actually ran, and never twice for the same batch. |
+| **Assembly note** | Panel switches are runtime state while the static prompt section is baked at startup; each turn it computes a short "what is active, what is switched off, do not present the off ones as working" note. |
 
 ---
 
@@ -89,4 +94,4 @@ npm ci
 npm run verify   # syntax check + tests + privacy scan
 ```
 
-Four test groups (84 tests total): plugin contract, server modules and documentation regressions, the browser half, and the activity layer (classifier, failure layers, timeline, failure book, glossary, `/activity` route). There is also a fake-host load smoke test (`node scripts/load-smoke.mjs`) that runs `apply()` end to end — it proves the wiring, not that the plugin is installed into a real DSH.
+Seven test groups (132 tests total): plugin contract, server modules and documentation regressions, the browser half, the activity layer (classifier, failure layers, timeline, failure book, glossary, `/activity` route), the pre-flight guard (10 rules, three modes, allow channels, quiet exception), the agent roster, and the learning drills. There is also a fake-host load smoke test (`node scripts/load-smoke.mjs`) that runs `apply()` end to end — it exercises the guard allow path, roster registration, drill card emission, and both prompt contexts. It proves the wiring, not that the plugin is installed into a real DSH.

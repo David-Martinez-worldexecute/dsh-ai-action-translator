@@ -62,6 +62,8 @@ window.__ModuleLoader__.load({
         'field.timelineSize': '时间线条数',
         'field.glossary': '术语卡片',
         'field.failureBook': '失败案例库',
+        'field.drill': '学习练习册',
+        'field.drillEvery': '每多少个动作出一道',
 
         'hint.learningFocus': '只影响讲解重点，不是授权',
         'hint.frameworkMap': '解释里保留「入口→…→测试」六层地图',
@@ -76,10 +78,14 @@ window.__ModuleLoader__.load({
         'hint.timelineSize': '取值 0–200；0 = 不记录',
         'hint.glossary': 'waterfall、peerDependency 这类词第一次出现时就地给一句话',
         'hint.failureBook': '把报错按层归档，下次遇到同类先翻这里',
+        'hint.drill': '攒够几条真实动作就自动出一道复述练习（看到什么 / 技术点 / 下一步练什么），只引用真跑过的动作',
+        'hint.drillEvery': '2–10，默认 3；太小会刷屏，太大会等很久',
         'hint.sensitiveTools': '每行一个，支持以 * 结尾的前缀匹配。命中名单的工具，其参数在摘要中只显示「已省略」。',
         'ph.learningFocus': '例：文件读写、Agent 工具循环',
         'ph.persona': '例：温柔耐心的学姐，常用「我们先拆小一点」',
         'ph.sensitiveTools': '每行一个，支持以 * 结尾的前缀匹配',
+        'ph.guardAllow': '每行一条规则 id；留空 = 不放行任何规则',
+        'ph.guardAllowTools': '每行一个工具名，例：mcp__windows__*',
 
         'group.activity': '动作回看（只读，不写进提示词）',
         'activity.timeline': '动作时间线',
@@ -88,7 +94,36 @@ window.__ModuleLoader__.load({
         'activity.empty': '（还没有记录到动作。跑一轮对话，这里就会按时间列出每个工具调用。）',
         'activity.failEmpty': '（还没有失败案例。报错会按层归档，同一类只记一条并累计次数。）',
         'activity.timelineMeta': '共 {n} 条 · 失败 {m} 次 · 上限 {limit}',
+        'activity.agents': '参与 {n} 个 agent（在跑 {live}）',
         'activity.failureMeta': '案例 {n} 个 · 累计命中 {m} 次',
+
+      // ── 侧栏常驻面板（只读回看，不写进提示词） ──
+      'side.tab': '动作回看',
+      'side.refresh': '刷新',
+      'side.loading': '读取中…',
+      'side.hint': '只给回看，不写进提示词',
+      'side.error': '读取失败：',
+      'side.timeline': '最近动作',
+      'side.total': '总条数',
+      'side.failed': '其中失败',
+      'side.empty': '（还没有记录。跑一轮对话，这里就会按时间列出每个工具调用。）',
+      'side.failures': '失败案例',
+      'side.failEmpty': '（还没有失败案例。报错会按层归档。）',
+      'side.glossary': '术语卡片',
+      'side.glossaryEmpty': '（还没有术语卡片。）',
+        'group.advanced': '高级选项（默认收起）',
+        'field.advancedMode': '展开高级选项',
+        'field.guardMode': '事前守门',
+        'field.guardLevel': '守门范围',
+        'field.guardAllow': '规则放行名单',
+        'field.guardAllowTools': '工具放行名单',
+        'field.guardQuiet': '覆盖写也提醒',
+        'hint.advancedMode': '打开后才显示守门与放行名单。不确定就别开。',
+        'hint.guardMode': '守门是唯一会「介入执行」的开关；选「关闭」时它不监听任何执行事件。',
+        'hint.guardLevel': '「只管高风险」= 删除 / 关机 / 改权限 / 读凭据 / 破坏性 git；「+ 中等」再加装依赖 / 停服务 / 联网 / 覆盖写。',
+        'hint.guardAllow': '每行一条规则 id，命中的规则直接放行。规则表见 GET /activity 的 guardRules。',
+        'hint.guardAllowTools': '每行一个工具名，支持 * 前缀（如 mcp__windows__*）；这些工具不受守门影响。',
+        'hint.guardQuiet': '覆盖写文件最频繁，默认不报；勾上后它也计入提醒。',
         'group.preset': '快捷预设',
         'preset.apply': '套用',
         'preset.applied': '预设已套用并保存。',
@@ -169,6 +204,8 @@ window.__ModuleLoader__.load({
         'field.timelineSize': 'Timeline rows',
         'field.glossary': 'Term cards',
         'field.failureBook': 'Failure book',
+        'field.drill': 'Learning drills',
+        'field.drillEvery': 'One card every N actions',
 
         'hint.learningFocus': 'Affects emphasis only, not authorization',
         'hint.frameworkMap': 'Keep the six-layer map in explanations',
@@ -183,10 +220,14 @@ window.__ModuleLoader__.load({
         'hint.timelineSize': 'Range 0–200; 0 = do not record',
         'hint.glossary': 'Give a one-line gloss the first time a term like waterfall or peerDependency appears',
         'hint.failureBook': 'Archive errors by layer, so the next similar failure starts here',
+        'hint.drill': 'After a few real actions, hand out one recall exercise (what you saw / the technical point / what to practise next), quoting only actions that actually ran',
+        'hint.drillEvery': '2–10, default 3; too small floods the chat, too large waits forever',
         'hint.sensitiveTools': 'One per line; a trailing * means prefix match. Matching tools show "omitted" for arguments.',
         'ph.learningFocus': 'e.g. file I/O, agent tool loop',
         'ph.persona': 'e.g. a patient senior who says "let\'s split this smaller"',
         'ph.sensitiveTools': 'One per line; trailing * means prefix match',
+        'ph.guardAllow': 'One rule id per line; empty means allow nothing',
+        'ph.guardAllowTools': 'One tool name per line, e.g. mcp__windows__*',
 
         'group.activity': 'Activity review (read-only, never written into the prompt)',
         'activity.timeline': 'Action timeline',
@@ -195,7 +236,36 @@ window.__ModuleLoader__.load({
         'activity.empty': '(No actions recorded yet. Run one conversation turn and every tool call will show up here in order.)',
         'activity.failEmpty': '(No failures yet. Errors are archived by layer; the same kind is recorded once with a running count.)',
         'activity.timelineMeta': '{n} recorded · {m} failed · cap {limit}',
+        'activity.agents': '{n} agent(s) involved ({live} live)',
         'activity.failureMeta': '{n} cases · {m} hits',
+
+      // ── Sidebar pane (read-only review; never injected into the prompt) ──
+      'side.tab': 'Activity',
+      'side.refresh': 'Refresh',
+      'side.loading': 'Loading…',
+      'side.hint': 'For review only — never injected into the prompt',
+      'side.error': 'Could not load: ',
+      'side.timeline': 'Recent actions',
+      'side.total': 'recorded',
+      'side.failed': 'failed',
+      'side.empty': '(Nothing recorded yet. Run one conversation turn and each tool call shows up here in order.)',
+      'side.failures': 'Failure book',
+      'side.failEmpty': '(No failures yet. Errors are archived by layer.)',
+      'side.glossary': 'Term cards',
+      'side.glossaryEmpty': '(No term cards yet.)',
+        'group.advanced': 'Advanced options (collapsed by default)',
+        'field.advancedMode': 'Show advanced options',
+        'field.guardMode': 'Pre-flight guard',
+        'field.guardLevel': 'Guard scope',
+        'field.guardAllow': 'Rule allowlist',
+        'field.guardAllowTools': 'Tool allowlist',
+        'field.guardQuiet': 'Also flag overwrites',
+        'hint.advancedMode': 'Turning this on reveals the guard and its allowlists. Leave it off unless you need it.',
+        'hint.guardMode': 'The guard is the only switch that can intervene before a tool runs; on "off" it listens to nothing.',
+        'hint.guardLevel': '"High risk only" = delete / power / permissions / credentials / destructive git; "+ medium" also covers installs, service stops, network calls, and overwrites.',
+        'hint.guardAllow': 'One rule id per line; matching rules are allowed straight through. See guardRules on GET /activity.',
+        'hint.guardAllowTools': 'One tool name per line, trailing * for prefix match (e.g. mcp__windows__*); those tools bypass the guard.',
+        'hint.guardQuiet': 'Plain file overwrites are the noisiest case and stay silent by default; enable to count them.',
         'group.preset': 'Quick presets',
         'preset.apply': 'Apply',
         'preset.applied': 'Preset applied and saved.',
@@ -254,13 +324,16 @@ window.__ModuleLoader__.load({
       'stageSummary', 'skillCollaboration', 'frameworkMap', 'stepParse',
       'learningFocus', 'playfulness', 'encouragement', 'persona',
       'actionDigest', 'digestSize', 'timeline', 'timelineSize',
-      'glossary', 'failureBook', 'observeTools', 'sensitiveTools',
+      'glossary', 'failureBook', 'drill', 'drillEvery',
+      'guardMode', 'guardLevel',
+      'guardAllow', 'guardAllowTools', 'guardQuiet', 'advancedMode',
+      'observeTools', 'sensitiveTools',
     ]
 
-    const BOOL_FIELDS = ['frameworkMap', 'stepParse', 'stageSummary', 'skillCollaboration', 'actionDigest', 'timeline', 'glossary', 'failureBook', 'observeTools']
+    const BOOL_FIELDS = ['frameworkMap', 'stepParse', 'stageSummary', 'skillCollaboration', 'actionDigest', 'timeline', 'glossary', 'failureBook', 'drill', 'guardQuiet', 'advancedMode', 'observeTools']
     const TEXT_FIELDS = ['learningFocus', 'persona']
-    // 这三个字段用专用控件（两个数字输入 + 多行文本），不走上面三张分类表。
-    const SPECIAL_FIELDS = ['digestSize', 'timelineSize', 'sensitiveTools']
+    // 这几项用专用控件（三个数字输入 + 三个多行文本），不走上面三张分类表。
+    const SPECIAL_FIELDS = ['digestSize', 'timelineSize', 'drillEvery', 'guardAllow', 'guardAllowTools', 'sensitiveTools']
 
     /** 下拉字段与候选项：值 → [中文, English]。 */
     const SELECTS = [
@@ -286,6 +359,8 @@ window.__ModuleLoader__.load({
       },
       { id: 'playfulness', options: [['off', '关闭', 'Off'], ['gentle', '温和（推荐）', 'Gentle (recommended)'], ['cheerful', '活泼', 'Cheerful']] },
       { id: 'encouragement', options: [['off', '关闭', 'Off'], ['gentle', '温和', 'Gentle'], ['active', '积极', 'Active']] },
+      { id: 'guardMode', options: [['off', '关闭（默认，完全不介入）', 'Off (default, never intervenes)'], ['warn', '提醒（放行但记一条）', 'Warn (allow, log it)'], ['deny', '拦下（让 AI 换做法）', 'Deny (make the agent change course)']] },
+      { id: 'guardLevel', options: [['high', '只管高风险', 'High risk only'], ['medium', '高风险 + 中等', 'High + medium']] },
     ]
 
     const PERSONA_LIMIT = 600
@@ -293,6 +368,10 @@ window.__ModuleLoader__.load({
     const DIGEST_MAX = 50
     const TIMELINE_MIN = 0
     const TIMELINE_MAX = 200
+    const DRILL_MIN = 2
+    const DRILL_MAX = 10
+    /** 放行名单上限，与后端 sanitizeOverrides 的数组上限（50）保持一致。 */
+    const GUARD_ALLOW_MAX = 50
     const REQUEST_TIMEOUT = 8000
 
     /**
@@ -346,6 +425,16 @@ window.__ModuleLoader__.load({
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
 
+    /** 数组字段（放行名单 / 敏感工具）统一按「一行一条」在 textarea 里编辑。 */
+    function listToText(value) {
+      return Array.isArray(value) ? value.filter(item => typeof item === 'string').join('\n') : ''
+    }
+
+    /** 多行文本 → 数组：去空白、丢空行。 */
+    function textToList(value) {
+      return String(value ?? '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+    }
+
     /** 把后端返回的 settings 收敛成表单状态：类型不对就退回默认值，绝不让界面炸掉。 */
     function toForm(settings) {
       const source = settings && typeof settings === 'object' ? settings : {}
@@ -361,9 +450,11 @@ window.__ModuleLoader__.load({
       form.digestSize = Number.isFinite(raw) ? Math.min(DIGEST_MAX, Math.max(DIGEST_MIN, Math.trunc(raw))) : 8
       const rawTimeline = Number(source.timelineSize)
       form.timelineSize = Number.isFinite(rawTimeline) ? Math.min(TIMELINE_MAX, Math.max(TIMELINE_MIN, Math.trunc(rawTimeline))) : 40
-      form.sensitiveTools = Array.isArray(source.sensitiveTools)
-        ? source.sensitiveTools.filter(item => typeof item === 'string').join('\n')
-        : ''
+      const rawDrill = Number(source.drillEvery)
+      form.drillEvery = Number.isFinite(rawDrill) ? Math.min(DRILL_MAX, Math.max(DRILL_MIN, Math.trunc(rawDrill))) : 3
+      form.guardAllow = listToText(source.guardAllow)
+      form.guardAllowTools = listToText(source.guardAllowTools)
+      form.sensitiveTools = listToText(source.sensitiveTools)
       return form
     }
 
@@ -377,10 +468,12 @@ window.__ModuleLoader__.load({
       payload.digestSize = Number.isFinite(size) ? Math.min(DIGEST_MAX, Math.max(DIGEST_MIN, Math.trunc(size))) : 0
       const timelineSize = Number(form.timelineSize)
       payload.timelineSize = Number.isFinite(timelineSize) ? Math.min(TIMELINE_MAX, Math.max(TIMELINE_MIN, Math.trunc(timelineSize))) : 0
-      payload.sensitiveTools = String(form.sensitiveTools ?? '')
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(Boolean)
+      // 缺省回落 3（不是 0）：0 会被后端收敛成下限 2，用户看到的就不是「默认」了。
+      const drillEvery = form.drillEvery === undefined || form.drillEvery === null || form.drillEvery === '' ? 3 : Number(form.drillEvery)
+      payload.drillEvery = Number.isFinite(drillEvery) ? Math.min(DRILL_MAX, Math.max(DRILL_MIN, Math.trunc(drillEvery))) : 3
+      payload.guardAllow = textToList(form.guardAllow)
+      payload.guardAllowTools = textToList(form.guardAllowTools)
+      payload.sensitiveTools = textToList(form.sensitiveTools)
       return payload
     }
 
@@ -392,6 +485,11 @@ window.__ModuleLoader__.load({
       if (!Number.isFinite(size) || size < DIGEST_MIN || size > DIGEST_MAX) problems.push(`digestSize ${DIGEST_MIN}–${DIGEST_MAX}`)
       const timelineSize = Number(form.timelineSize)
       if (!Number.isFinite(timelineSize) || timelineSize < TIMELINE_MIN || timelineSize > TIMELINE_MAX) problems.push(`timelineSize ${TIMELINE_MIN}–${TIMELINE_MAX}`)
+      // drillEvery 缺省（老表单没渲染这个控件）不算错：回落默认 3，与 toForm/toPayload 一致。
+      const rawDrill = form.drillEvery === undefined || form.drillEvery === null || form.drillEvery === '' ? 3 : Number(form.drillEvery)
+      if (!Number.isFinite(rawDrill) || rawDrill < DRILL_MIN || rawDrill > DRILL_MAX) problems.push(`drillEvery ${DRILL_MIN}–${DRILL_MAX}`)
+      if (textToList(form.guardAllow).length > GUARD_ALLOW_MAX) problems.push(`guardAllow ≤ ${GUARD_ALLOW_MAX}`)
+      if (textToList(form.guardAllowTools).length > GUARD_ALLOW_MAX) problems.push(`guardAllowTools ≤ ${GUARD_ALLOW_MAX}`)
       return problems
     }
 
@@ -448,6 +546,92 @@ window.__ModuleLoader__.load({
      * 生命周期：挂载时拉一次 /settings（含 health），之后只有用户点按钮才发请求——
      * 不做轮询，避免两个窗口同时开着时刷日志、并发写同一份 settings.json。
      */
+    /** 侧栏页签的稳定 id / kind：宿主用它记住「用户上次停在哪一栏」。 */
+    const SIDEBAR_TAB_ID = 'ai-action-translator/activity'
+    const SIDEBAR_TAB_KIND = 'ai-action-translator-activity'
+
+    /**
+     * 侧栏常驻面板：把「最近动作 / 失败案例 / 术语卡片」搬到右手边，不用打开设置页。
+     *
+     * 与设置页同一条原则：挂载时拉一次 `/activity`，之后只有用户点「刷新」才再请求。
+     * 不轮询——否则每开一个窗口就多一条请求，还容易被误以为在偷看对话。
+     * 这里只读，永远不写 settings、也不改任何提示词。
+     */
+    function ActivityPanel(props) {
+      const t = props && typeof props.t === 'function' ? props.t : key => key
+      const [data, setData] = useState(undefined)
+      const [busy, setBusy] = useState(false)
+      const [error, setError] = useState('')
+
+      const load = useCallback(() => {
+        setBusy(true)
+        setError('')
+        return api('/activity')
+          .then(setData)
+          .catch(err => setError(String((err && err.message) || err)))
+          .then(() => { setBusy(false) })
+      }, [])
+
+      useEffect(() => { load() }, [load])
+
+      const timeline = data && Array.isArray(data.timeline) ? data.timeline : []
+      const failures = data && Array.isArray(data.failures) ? data.failures : []
+      const glossary = data && Array.isArray(data.glossary) ? data.glossary : []
+      const labels = new Map(((data && data.classes) || []).map(entry => [entry.id, entry.label]))
+      const summary = (data && data.summary) || {}
+
+      return h('div', { style: { ...S.root, padding: 12, maxWidth: '100%', boxSizing: 'border-box' } },
+        h('div', { style: S.btns },
+          h('button', { type: 'button', style: S.button, disabled: busy, onClick: load },
+            busy ? t('side.loading') : t('side.refresh')),
+          h('span', { style: S.hint }, t('side.hint')),
+        ),
+        error ? h('div', { style: S.err, role: 'status' }, `${t('side.error')}${error}`) : null,
+
+        h('fieldset', { style: S.group },
+          h('legend', { style: S.legend }, t('side.timeline')),
+          h('div', { style: S.metrics },
+            h('div', { style: S.metric },
+              h('span', { style: S.metricValue }, String(Number.isFinite(summary.total) ? summary.total : timeline.length)),
+              h('span', { style: S.metricLabel }, t('side.total')),
+            ),
+            h('div', { style: S.metric },
+              h('span', { style: S.metricValue }, String(Number.isFinite(summary.failed) ? summary.failed : 0)),
+              h('span', { style: S.metricLabel }, t('side.failed')),
+            ),
+          ),
+          h('div', { style: S.logs },
+            timeline.length === 0
+              ? h('div', { style: S.hint }, t('side.empty'))
+              : timeline.slice(0, 20).map((entry, index) => h('div', {
+                key: `tl-${entry.at}-${index}`,
+                style: entry.isError ? { ...S.logRow, ...S.warn } : S.logRow,
+              }, `${new Date(entry.at).toLocaleTimeString()} [${labels.get(entry.classId) || entry.classId || 'other'}] ${entry.name}${entry.agentLabel ? ` · ${entry.agentLabel}` : ''}${entry.isError ? ' ✗' : ''} · ${entry.summary || ''}`)),
+          ),
+        ),
+
+        h('fieldset', { style: S.group },
+          h('legend', { style: S.legend }, t('side.failures')),
+          h('div', { style: S.logs },
+            failures.length === 0
+              ? h('div', { style: S.hint }, t('side.failEmpty'))
+              : failures.map(item => h('div', { key: `fb-${item.signature}`, style: { ...S.logRow, ...S.warn } },
+                `${item.layer || 'other'} · ${item.signature}${item.hits ? ` ×${item.hits}` : ''}`)),
+          ),
+        ),
+
+        h('fieldset', { style: S.group },
+          h('legend', { style: S.legend }, t('side.glossary')),
+          h('div', { style: S.logs },
+            glossary.length === 0
+              ? h('div', { style: S.hint }, t('side.glossaryEmpty'))
+              : glossary.map(item => h('div', { key: `gl-${item.term}`, style: S.logRow },
+                `${item.term} — ${item.zh || item.en || ''}`)),
+          ),
+        ),
+      )
+    }
+
     function SettingsSection(props) {
       const { t } = props
       const [form, setForm] = useState(undefined)
@@ -713,9 +897,32 @@ window.__ModuleLoader__.load({
           }), t('hint.timelineSize')),
           row('glossary', checkbox('glossary'), t('hint.glossary')),
           row('failureBook', checkbox('failureBook'), t('hint.failureBook')),
+          row('drill', checkbox('drill'), t('hint.drill')),
+          row('drillEvery', h('input', {
+            id: 'aat-drillEvery', type: 'number', min: DRILL_MIN, max: DRILL_MAX, step: 1, size: 4, style: S.input,
+            value: form.drillEvery, onChange: event => set('drillEvery', event.target.value),
+          }), t('hint.drillEvery')),
           h('div', { style: S.row }, h('label', { style: S.label, htmlFor: 'aat-sensitiveTools' }, t('field.sensitiveTools'))),
           textarea('sensitiveTools', 'ph.sensitiveTools'),
           h('div', { style: S.hint }, t('hint.sensitiveTools')),
+
+          // ── 高级选项：默认收起。守门是唯一会「介入执行」的功能，藏在最底下。 ──
+          h('div', { style: { ...S.row, borderTop: '1px dashed var(--border)', marginTop: 10, paddingTop: 10 } },
+            h('label', { style: S.label, htmlFor: 'aat-advancedMode' }, t('field.advancedMode')),
+            checkbox('advancedMode'),
+            h('span', { style: S.hint }, t('hint.advancedMode')),
+          ),
+          form.advancedMode === true ? h('div', { key: 'advancedBlock', style: { marginTop: 4 } },
+            row('guardMode', select(selectMap.guardMode), t('hint.guardMode')),
+            row('guardLevel', select(selectMap.guardLevel), t('hint.guardLevel')),
+            row('guardQuiet', checkbox('guardQuiet'), t('hint.guardQuiet')),
+            h('div', { style: S.row }, h('label', { style: S.label, htmlFor: 'aat-guardAllow' }, t('field.guardAllow'))),
+            textarea('guardAllow', 'ph.guardAllow'),
+            h('div', { style: S.hint }, t('hint.guardAllow')),
+            h('div', { style: S.row }, h('label', { style: S.label, htmlFor: 'aat-guardAllowTools' }, t('field.guardAllowTools'))),
+            textarea('guardAllowTools', 'ph.guardAllowTools'),
+            h('div', { style: S.hint }, t('hint.guardAllowTools')),
+          ) : null,
         ),
 
         h('div', { style: S.btns },
@@ -787,6 +994,7 @@ window.__ModuleLoader__.load({
             const terms = Array.isArray(data.glossary) ? data.glossary : []
             const classes = new Map((Array.isArray(data.classes) ? data.classes : []).map(item => [item.id, item.label]))
             const summary = data.summary || {}
+            const agentSummary = data.agentSummary || {}
             const failureSummary = data.failureSummary || {}
             const fill = (template, values) => Object.keys(values).reduce(
               (text, key) => text.split(`{${key}}`).join(String(values[key])),
@@ -797,12 +1005,12 @@ window.__ModuleLoader__.load({
                 n: summary.total !== undefined ? summary.total : rows.length,
                 m: summary.errors !== undefined ? summary.errors : 0,
                 limit: summary.limit !== undefined ? summary.limit : 0,
-              })}`),
+              })}${agentSummary.total ? ` · ${fill(t('activity.agents'), { n: agentSummary.total, live: agentSummary.live || 0 })}` : ''}`),
               h('div', { style: S.logs },
                 rows.length === 0 ? t('activity.empty') : rows.map((entry, index) => h('div', {
                   key: `tl-${entry.at}-${index}`,
                   style: entry.isError ? { ...S.logRow, ...S.error } : entry.redacted ? { ...S.logRow, ...S.warn } : S.logRow,
-                }, `${new Date(entry.at).toLocaleTimeString()} [${classes.get(entry.classId) || entry.classId || 'other'}] ${entry.name}${entry.isError ? ' ✗' : ''}${Number.isFinite(entry.durationMs) ? ` ${entry.durationMs}ms` : ''} · ${entry.summary || ''}${entry.redacted ? ' ⚠' : ''}`)),
+                }, `${new Date(entry.at).toLocaleTimeString()} [${classes.get(entry.classId) || entry.classId || 'other'}] ${entry.name}${entry.agentLabel ? ` · ${entry.agentLabel}` : ''}${entry.isError ? ' ✗' : ''}${Number.isFinite(entry.durationMs) ? ` ${entry.durationMs}ms` : ''} · ${entry.summary || ''}${entry.redacted ? ' ⚠' : ''}`)),
               ),
               h('div', { style: S.hint }, `${t('activity.failure')} · ${fill(t('activity.failureMeta'), {
                 n: failureSummary.cases !== undefined ? failureSummary.cases : failures.length,
@@ -844,6 +1052,40 @@ window.__ModuleLoader__.load({
           label: () => t('nav'),
           locale: NS,
         }, props => h(SettingsSection, { ...props, t })))
+
+        // 侧栏常驻页签：宿主有右侧栏服务才挂，没有就静默跳过（设置页照常可用）。
+        // ctx.inject 是「等服务就绪再回调」，所以不能放在 try 外——它自己也可能抛。
+        if (typeof ctx.inject === 'function') {
+          ctx.inject(['sidebarRightTabs'], (owner) => {
+            try {
+              const tabs = owner && typeof owner.get === 'function' ? owner.get('sidebarRightTabs') : undefined
+              if (!tabs || typeof tabs.register !== 'function') return
+              const title = () => t('side.tab')
+              const tab = {
+                id: SIDEBAR_TAB_ID,
+                kind: SIDEBAR_TAB_KIND,
+                priority: 'extension',
+                title,
+                guide: [{ order: 100, title }],
+              }
+              if (typeof owner.effect === 'function') {
+                owner.effect(() => tabs.register(tab), 'ai-action-translator: sidebar activity tab type')
+              } else {
+                tabs.register(tab)
+              }
+              const canRegister = owner.slots && typeof owner.slots.register === 'function' && typeof owner.slots.inject === 'function'
+              if (!canRegister) return
+              const register = owner.slots.register.bind(owner.slots)
+              owner.slots.inject('sidebar.right.pane.tab', () => register({
+                name: 'sidebar.right.pane.tab',
+                key: SIDEBAR_TAB_ID,
+                inject: () => ({ t }),
+              }, ActivityPanel))
+            } catch (error) {
+              console.warn('[dsh-ai-action-translator] sidebar pane unavailable:', error && error.message ? error.message : error)
+            }
+          })
+        }
       } catch (error) {
         // 界面层永远不许把宿主设置页拖垮：缺服务、坑位改名都只记一条警告。
         console.warn('[dsh-ai-action-translator] client half unavailable:', error && error.message ? error.message : error)
@@ -854,7 +1096,7 @@ window.__ModuleLoader__.load({
     exports.inject = inject
     exports.name = 'ai-action-translator'
     // 无浏览器测试接缝：node:vm 里注入 stub 后可直接检查字段清单与路径解析。
-    exports.__test = { DICT, NS, FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SPECIAL_FIELDS, SELECTS, PERSONA_LIMIT, DIGEST_MIN, DIGEST_MAX, TIMELINE_MIN, TIMELINE_MAX, API_PATH, toForm, toPayload, validate, describeError }
+    exports.__test = { DICT, NS, FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SPECIAL_FIELDS, SELECTS, PERSONA_LIMIT, DIGEST_MIN, DIGEST_MAX, TIMELINE_MIN, TIMELINE_MAX, GUARD_ALLOW_MAX, DRILL_MIN, DRILL_MAX, API_PATH, listToText, textToList, toForm, toPayload, validate, describeError }
     return module.exports
   },
 })

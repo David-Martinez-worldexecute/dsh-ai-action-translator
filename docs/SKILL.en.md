@@ -119,7 +119,9 @@ Advance by stage: basic concepts → project framework → agent runtime → cod
 
 The main entry point is the **section registered in the DSH settings page**. Do not suggest typing `http://127.0.0.1:19387/api/ai-action-translator/` by hand — the kernel returns `401 dsh web authentication required` because `/api*` is locked behind the launch token and a signed cookie.
 
-The panel edits the "explanation style layer": language, detail, learning stage, knowledge level, learning focus, **four switches (step-by-step parse / framework map / stage summary / skill collaboration)**, playfulness, encouragement strength, persona, read-only observation, digest injection, digest size, sensitive tool list, **full timeline on/off, timeline rows, term cards, failure book**.
+The panel edits the "explanation style layer": language, detail, learning stage, knowledge level, learning focus, **eight switches (step-by-step parse / framework map / stage summary / skill collaboration / full timeline / term cards / failure book / learning drills)**, playfulness, encouragement strength, persona, read-only observation, digest injection, digest size, sensitive tool list, every-N-actions drill cadence, **timeline rows**.
+
+**Only the common options are visible by default.** The pre-flight guard (`guardMode` / `guardLevel` / `guardAllow` / `guardAllowTools` / `guardQuiet`), the drill switch, and the rule/tool allowlists live behind an "advanced options" toggle (`advancedMode`).
 
 Settings are saved to `~/.dsh/ai-action-translator/settings.json` and take effect on the next turn — no restart needed. `enabled` and `order` can only be set in YAML.
 
@@ -132,6 +134,15 @@ Three capabilities exist to help a human **review** what happened, and they stay
 - **Action timeline** — every tool call of the session, with category, duration, and success/failure. It is **never injected into the prompt**; it lives in the panel only.
 - **Failure book** — errors filed by layer (auth / permission / path / dependency / network / service / syntax / test). The same class is stored once with an accumulated count and one sample, so "have I seen this before, and which layer was it?" has an answer. Stored in `~/.dsh/ai-action-translator/failures.json`.
 - **Term cards** — a short glossary (`waterfall`, `emit`, `peerDependency`, `inject`, `slot`, `HMR`, `manifest`, ring buffer, atomic write, loopback, 401, EPERM, `link:`, idempotent, sandbox, token). Explain a term once, the first time it appears; for terms outside the table, explain from observable behavior rather than inventing a definition.
+
+---
+
+## The pre-flight guard, the agent roster, and learning drills
+
+- **Pre-flight guard** (`guardMode`, default `off`) — inspects the arguments **before** a tool actually runs and recognises 10 high-risk shapes (recursive delete / shutdown or permission change / credential reads / destructive git / writes into system directories / dependency installs / service stops / outbound network / in-place overwrite). `warn` flags it and proceeds, `deny` actually stops it and returns the reason; with `off` not even the `tools/pre-execute` listener is registered. **It only matches literal shapes in the arguments — it does not guess intent and does not read file contents.** So "nothing was flagged" does not mean "provably safe", and being stopped does not mean you did something wrong: relay the reason and the allow channel verbatim instead of inventing a worse consequence.
+- **Agent roster** — the timeline labels each action with the agent that performed it (derived from the id and the working directory). **System-level calls with no agent context stay blank**; never paint them as "the main agent" just to look tidy. The roster is in-memory only: nothing is persisted, no conversation content is read.
+- **Learning drills** (`drill`, default off) — once `drillEvery` **real** actions have accumulated, the prompt gains a three-question card (what you saw / the technical point you can restate / what to practise next). Every quoted action comes from the timeline, so **never invent actions that are not listed**; each batch yields exactly one card and a second call returns an empty string.
+- **Assembly note** — recomputed every turn, stating what is active and what is switched off. When asked "is this switch on?", trust it: say plainly that an off item is off and how to turn it on, rather than pretending it is in effect.
 
 ---
 
