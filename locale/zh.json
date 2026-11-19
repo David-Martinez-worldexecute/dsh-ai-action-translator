@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "AI 动作翻译器",
+    "description": "把 AI 的工具调用翻译成人话，让初学者看得懂它在做什么、为什么这么做。",
+    "detail": "docs/DETAIL.md"
+  }
+}

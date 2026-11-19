@@ -71,6 +71,27 @@ window.__ModuleLoader__.load({
         'ph.persona': '例：温柔耐心的学姐，常用「我们先拆小一点」',
         'ph.sensitiveTools': '每行一个，支持以 * 结尾的前缀匹配',
 
+        'group.preset': '快捷预设',
+        'preset.apply': '套用',
+        'preset.applied': '预设已套用并保存。',
+        'group.preview': '试一下',
+        'preview.run': '生成一段样例',
+        'preview.running': '生成中…',
+        'preview.empty': '点「生成一段样例」，看看模型下一轮实际会收到什么。',
+        'preview.length': '字符',
+        'preview.fail': '预览失败：',
+        'group.stats': '运行统计',
+        'stats.observed': '已观察工具调用',
+        'stats.sensitive': '敏感命中',
+        'stats.previews': '预览次数',
+        'stats.uptime': '已运行',
+        'io.export': '导出配置',
+        'io.import': '导入配置',
+        'io.exported': '配置已导出。',
+        'io.imported': '配置已导入并保存。',
+        'io.badFile': '这个文件不是合法的 JSON。',
+        'io.fail': '导入失败：',
+
         save: '保存设置',
         refresh: '刷新',
         reset: '恢复默认',
@@ -138,6 +159,27 @@ window.__ModuleLoader__.load({
         'ph.learningFocus': 'e.g. file I/O, agent tool loop',
         'ph.persona': 'e.g. a patient senior who says "let\'s split this smaller"',
         'ph.sensitiveTools': 'One per line; trailing * means prefix match',
+
+        'group.preset': 'Quick presets',
+        'preset.apply': 'Apply',
+        'preset.applied': 'Preset applied and saved.',
+        'group.preview': 'Try it',
+        'preview.run': 'Generate a sample',
+        'preview.running': 'Generating…',
+        'preview.empty': 'Click "Generate a sample" to see what the agent will actually be told.',
+        'preview.length': 'chars',
+        'preview.fail': 'Preview failed: ',
+        'group.stats': 'Runtime stats',
+        'stats.observed': 'Tool calls observed',
+        'stats.sensitive': 'Sensitive hits',
+        'stats.previews': 'Previews',
+        'stats.uptime': 'Uptime',
+        'io.export': 'Export config',
+        'io.import': 'Import config',
+        'io.exported': 'Config exported.',
+        'io.imported': 'Config imported and saved.',
+        'io.badFile': 'That file is not valid JSON.',
+        'io.fail': 'Import failed: ',
 
         save: 'Save',
         refresh: 'Refresh',
@@ -306,6 +348,20 @@ window.__ModuleLoader__.load({
       return problems
     }
 
+    /** 毫秒 → 人读的「x 天 y 小时」/「x 分 y 秒」。未知或非法值显示 —。 */
+    function formatUptime(ms) {
+      const total = Number(ms)
+      if (!Number.isFinite(total) || total < 0) return '—'
+      const sec = Math.floor(total / 1000)
+      const day = Math.floor(sec / 86400)
+      const hour = Math.floor((sec % 86400) / 3600)
+      const min = Math.floor((sec % 3600) / 60)
+      if (day > 0) return `${day}d ${hour}h`
+      if (hour > 0) return `${hour}h ${min}m`
+      if (min > 0) return `${min}m ${sec % 60}s`
+      return `${sec}s`
+    }
+
     // ── 样式（跟随宿主主题变量；科技感：青色高亮 + 发光 + 大圆角；窄屏自适应收纵向） ──
     const HI = 'var(--dsh-color-accent, #38bdf8)'
     const S = {
@@ -329,6 +385,13 @@ window.__ModuleLoader__.load({
       warn: { color: 'var(--dsh-color-warning, #fbbf24)' },
       error: { color: 'var(--dsh-color-danger, #f87171)' },
       code: { opacity: 0.72, fontSize: '11px', fontFamily: 'ui-monospace, Consolas, monospace' },
+      presetRow: { display: 'flex', gap: '8px', margin: '4px 0 10px', flexWrap: 'wrap', alignItems: 'center' },
+      chip: { fontSize: '12px', padding: '5px 12px', borderRadius: '999px', border: '1px solid ' + HI, background: 'transparent', color: 'inherit', cursor: 'pointer' },
+      metrics: { display: 'flex', gap: '18px', flexWrap: 'wrap', fontSize: '12px', margin: '4px 0' },
+      metric: { display: 'flex', flexDirection: 'column', minWidth: '92px' },
+      metricValue: { fontSize: '18px', fontWeight: 600, color: HI, lineHeight: 1.3 },
+      metricLabel: { fontSize: '11px', opacity: 0.66 },
+      pre: { margin: '6px 0 0', padding: '10px 12px', border: '1px solid var(--dsh-color-border, #8884)', borderRadius: '9px', background: 'color-mix(in srgb, ' + HI + ' 4%, transparent)', fontSize: '11px', lineHeight: 1.6, maxHeight: '220px', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, Consolas, monospace' },
       // 注意：React 内联样式不支持 @media；自适应靠 flexWrap + 容器塌缩自然完成。
     }
 
@@ -345,6 +408,10 @@ window.__ModuleLoader__.load({
       const [health, setHealth] = useState(undefined)
       const [feedback, setFeedback] = useState(undefined)
       const [busy, setBusy] = useState(false)
+      /** 预设表由后端下发（lib/presets.js 是唯一事实源），前端不自己维护一份。 */
+      const [presets, setPresets] = useState([])
+      /** 「试一下」返回的真实提示词段落；undefined = 还没点过。 */
+      const [preview, setPreview] = useState(undefined)
 
       const describe = useCallback((error) => {
         const info = describeError(error)
@@ -358,6 +425,8 @@ window.__ModuleLoader__.load({
         setForm(toForm(payload && payload.settings))
         setMeta((payload && payload.meta) || {})
         setHealth(payload && payload.health)
+        // 预设表只在后端返回时更新：切档后不重新下发也不会清空按钮。
+        if (payload && Array.isArray(payload.presets)) setPresets(payload.presets)
       }, [])
 
       const load = useCallback((quiet) => {
@@ -400,10 +469,88 @@ window.__ModuleLoader__.load({
         post('/reset', undefined)
           .then(payload => {
             absorb(payload)
+            setPreview(undefined)
             setFeedback({ ok: true, text: String((payload && payload.feedback) || t('fb.reset')) })
           })
           .catch(error => setFeedback({ ok: false, text: `${t('fb.resetFail')}${describe(error)}` }))
           .then(() => { setBusy(false) })
+      }, [absorb, describe, t])
+
+      /** 一键切档：预设表来自后端，前端只负责发 id。 */
+      const applyPreset = useCallback((id) => {
+        setBusy(true)
+        post('/preset', { id })
+          .then(payload => {
+            absorb(payload)
+            setPreview(undefined)
+            setFeedback({ ok: true, text: String(t('preset.applied')) })
+          })
+          .catch(error => setFeedback({ ok: false, text: `${t('fb.saveFail')}${describe(error)}` }))
+          .then(() => { setBusy(false) })
+      }, [absorb, describe, t])
+
+      /**
+       * 「试一下」：把**当前草稿**（含还没保存的改动）发给 /preview，
+       * 后端用真实构建函数生成提示词段落回传。这样用户改完立刻能看见效果。
+       */
+      const runPreview = useCallback(() => {
+        if (form === undefined) return
+        setBusy(true)
+        post('/preview', { overrides: toPayload(form) })
+          .then(payload => setPreview(payload && payload.preview))
+          .catch(error => setFeedback({ ok: false, text: `${t('preview.fail')}${describe(error)}` }))
+          .then(() => { setBusy(false) })
+      }, [describe, form, t])
+
+      /** 导出配置：只导出运行时字段，浏览器下载成 JSON。 */
+      const exportConfig = useCallback(() => {
+        if (form === undefined) return
+        try {
+          const blob = new Blob([JSON.stringify(toPayload(form), null, 2)], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = 'ai-action-translator-settings.json'
+          link.rel = 'noreferrer'
+          link.click()
+          setTimeout(() => URL.revokeObjectURL(url), 1000)
+          setFeedback({ ok: true, text: String(t('io.exported')) })
+        } catch (error) {
+          setFeedback({ ok: false, text: `${t('io.fail')}${String(error && error.message ? error.message : error)}` })
+        }
+      }, [form, t])
+
+      /**
+       * 导入配置：先本地解析 + 白名单过一遍，再走正常的保存接口。
+       * 解析失败只提示、不发请求——坏文件不该打到后端。
+       */
+      const importConfig = useCallback((file) => {
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = () => {
+          let parsed
+          try {
+            parsed = JSON.parse(String(reader.result || ''))
+          } catch {
+            setFeedback({ ok: false, text: String(t('io.badFile')) })
+            return
+          }
+          if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            setFeedback({ ok: false, text: String(t('io.badFile')) })
+            return
+          }
+          setBusy(true)
+          post('/settings', toPayload(toForm(parsed)))
+            .then(payload => {
+              absorb(payload)
+              setPreview(undefined)
+              setFeedback({ ok: true, text: String(t('io.imported')) })
+            })
+            .catch(error => setFeedback({ ok: false, text: `${t('io.fail')}${describe(error)}` }))
+            .then(() => { setBusy(false) })
+        }
+        reader.onerror = () => setFeedback({ ok: false, text: String(t('io.badFile')) })
+        reader.readAsText(file)
       }, [absorb, describe, t])
 
       const row = (id, control, hint) => h('div', { style: S.row, key: id },
@@ -460,6 +607,20 @@ window.__ModuleLoader__.load({
       return h('div', { style: S.root },
         head,
 
+        // ── 快捷预设：一键切整套参数（预设表来自后端，前后端同源） ──
+        presets.length > 0 ? h('fieldset', { style: S.group },
+          h('legend', { style: S.legend }, t('group.preset')),
+          h('div', { style: S.presetRow }, presets.map(entry => h('button', {
+            key: entry.id,
+            type: 'button',
+            style: S.chip,
+            disabled: busy,
+            title: t('preset.apply') + ' ' + (entry.label || entry.id),
+            onClick: () => applyPreset(entry.id),
+          }, entry.label || entry.id))),
+          h('div', { style: S.hint }, presets.map(entry => `${entry.label || entry.id}：${entry.hint || ''}`).join(' · ')),
+        ) : null,
+
         h('fieldset', { style: S.group },
           h('legend', { style: S.legend }, t('group.basic')),
           row('language', select(selectMap.language)),
@@ -502,6 +663,19 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', style: S.primary, disabled: busy, onClick: save }, busy ? t('saving') : t('save')),
           h('button', { type: 'button', style: S.button, disabled: busy, onClick: () => load(false) }, t('refresh')),
           h('button', { type: 'button', style: S.button, disabled: busy, onClick: reset }, t('reset')),
+          h('button', { type: 'button', style: S.button, disabled: busy || form === undefined, onClick: exportConfig }, t('io.export')),
+          h('label', { style: S.button, title: t('io.import') },
+            t('io.import'),
+            h('input', {
+              type: 'file', accept: 'application/json,.json', style: { display: 'none' },
+              onChange: event => {
+                const file = event.target && event.target.files && event.target.files[0]
+                importConfig(file)
+                // 清空 value：否则同一个文件选第二次不会触发 change。
+                if (event.target) event.target.value = ''
+              },
+            }),
+          ),
           h('a', {
             style: S.button, href: `${API_PATH}/`, target: '_blank', rel: 'noreferrer',
             title: t('reason'),
@@ -509,6 +683,35 @@ window.__ModuleLoader__.load({
         ),
 
         feedback ? h('div', { style: feedback.ok ? S.ok : S.err, role: 'status' }, feedback.text) : null,
+
+        // ── 试一下：显示模型下一轮真实会收到的段落 ──
+        h('fieldset', { style: S.group },
+          h('legend', { style: S.legend }, t('group.preview')),
+          h('div', { style: S.btns },
+            h('button', { type: 'button', style: S.button, disabled: busy, onClick: runPreview },
+              busy ? t('preview.running') : t('preview.run')),
+            preview ? h('span', { style: S.hint }, `${preview.length} ${t('preview.length')} · ${preview.knowledgeLevel || ''} / ${preview.learningStage || ''}`) : null,
+          ),
+          preview
+            ? h('pre', { style: S.pre }, preview.section)
+            : h('div', { style: S.hint }, t('preview.empty')),
+        ),
+
+        // ── 运行统计：真实计数，证明插件在工作 ──
+        h('fieldset', { style: S.group },
+          h('legend', { style: S.legend }, t('group.stats')),
+          h('div', { style: S.metrics },
+            ...[
+              [t('stats.observed'), health && health.stats ? health.stats.observed : 0],
+              [t('stats.sensitive'), health && health.stats ? health.stats.sensitive : 0],
+              [t('stats.previews'), health && health.stats ? health.stats.previews : 0],
+              [t('stats.uptime'), formatUptime(health && health.uptimeMs)],
+            ].map(([label, value]) => h('div', { style: S.metric, key: String(label) },
+              h('span', { style: S.metricValue }, String(value === undefined ? 0 : value)),
+              h('span', { style: S.metricLabel }, label),
+            )),
+          ),
+        ),
 
         h('div', { style: S.status },
           `${t('status')(Number(meta.saveCount) || 0, savedAt)} · ${t('digestRows')} ${health && health.digestRows !== undefined ? health.digestRows : 0} ${t('rows')} · ${t('apiPath')} `,

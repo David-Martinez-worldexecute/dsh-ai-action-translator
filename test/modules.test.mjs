@@ -12,6 +12,7 @@ import { JsonStore } from '../lib/store.js'
 import { rejectionFor, authorityOf, isLoopbackHost } from '../lib/trust.js'
 import { createConfigServer, validateOverrides, sanitizeOverrides, readJson, LogRing, RUNTIME_KEYS } from '../lib/server.js'
 import { CONFIG_PAGE_HTML } from '../lib/page.js'
+import { PRESETS, PRESET_IDS, presetPatch, presetList } from '../lib/presets.js'
 
 function tmpHome() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'aat-mod-'))
@@ -320,3 +321,146 @@ test('package exposes the client half to the DSH web shell', () => {
   assert.ok(pkg.files.includes('client.js'))
   assert.ok(fs.existsSync(new URL('../client.js', import.meta.url)))
 })
+
+/* ───────────────── 配置预设（lib/presets.js） ───────────────── */
+
+test('presets cover the three learner levels and stay in the runtime whitelist', () => {
+  assert.equal(PRESETS.length, 3)
+  assert.deepEqual(PRESET_IDS, ['novice', 'guided', 'deep'])
+
+  for (const entry of PRESETS) {
+    assert.ok(entry.label.length > 0, `${entry.id} 需要中文标签`)
+    assert.ok(entry.labelEn.length > 0, `${entry.id} 需要英文标签`)
+    assert.ok(entry.hint.length > 0, `${entry.id} 需要中文说明`)
+    // 预设只能写运行时白名单里的字段：写 enabled/order 会被服务端 400 拒掉，
+    // 也会让「切档」偷偷变成结构性变更。
+    for (const key of Object.keys(entry.patch)) {
+      assert.ok(RUNTIME_KEYS.includes(key), `${entry.id} 含非运行时字段: ${key}`)
+    }
+  }
+})
+
+test('presetPatch returns a copy and rejects unknown ids', () => {
+  const patch = presetPatch('novice')
+  assert.equal(patch.knowledgeLevel, 'plain')
+  // 必须是副本：调用方改了不能污染全局预设表。
+  patch.knowledgeLevel = 'deep'
+  assert.equal(presetPatch('novice').knowledgeLevel, 'plain')
+  assert.equal(presetPatch('nope'), undefined)
+  assert.equal(presetPatch(''), undefined)
+})
+
+test('presetList ships the same shape the UIs render', () => {
+  const list = presetList()
+  assert.equal(list.length, 3)
+  for (const item of list) {
+    assert.deepEqual(Object.keys(item).sort(), ['hint', 'hintEn', 'id', 'label', 'labelEn', 'patch'])
+  }
+})
+
+/* ───────────────── 新路由：/preset 与 /preview ───────────────── */
+
+/** 构造一个最小 deps，只关心被新路由用到的字段。 */
+function serverDeps(overrides = {}) {
+  const saved = []
+  return {
+    saved,
+    deps: {
+      getMerged: () => ({ language: 'zh', knowledgeLevel: 'guided', digestSize: 8 }),
+      saveOverrides: (patch) => {
+        saved.push(patch)
+        return { settings: { ...patch }, feedback: 'saved' }
+      },
+      resetOverrides: () => ({ settings: {}, feedback: 'reset' }),
+      meta: () => ({ savedAt: 0, saveCount: saved.length }),
+      health: () => ({ version: '0.3.1', digestRows: 0, log: [], stats: { observed: 0 } }),
+      preview: (settings) => ({
+        section: `LEVEL=${settings.knowledgeLevel}`,
+        length: 10,
+        knowledgeLevel: settings.knowledgeLevel,
+        learningStage: settings.learningStage ?? 'framework',
+        detail: settings.detail,
+        frameworkMap: settings.frameworkMap,
+        stageSummary: settings.stageSummary,
+      }),
+      ...overrides,
+    },
+  }
+}
+
+/** 带 JSON body 的假请求：readJson 依赖真实流事件，所以这里必须给真流。 */
+function jsonReq({ method = 'POST', url = '/', body = {}, headers = {} } = {}) {
+  const stream = Readable.from([Buffer.from(JSON.stringify(body))])
+  stream.method = method
+  stream.url = url
+  stream.headers = { host: '127.0.0.1:19387', ...headers }
+  return stream
+}
+
+async function call(handler, req) {
+  const res = fakeRes()
+  await handler(req, res)
+  return res
+}
+
+test('GET /settings ships the preset list so both halves share one source of truth', async () => {
+  const { deps } = serverDeps()
+  const handler = createConfigServer(deps)
+  const res = await call(handler, fakeReq({ url: '/settings', headers: LOOPS }))
+  assert.equal(res.statusCode, 200)
+  const body = res.body()
+  assert.ok(Array.isArray(body.presets), '响应必须带 presets')
+  assert.equal(body.presets.length, 3)
+  assert.equal(body.presets[0].id, 'novice')
+})
+
+test('POST /preset applies the preset patch and rejects unknown ids', async () => {
+  const { deps, saved } = serverDeps()
+  const handler = createConfigServer(deps)
+
+  const ok = await call(handler, jsonReq({ url: '/preset', body: { id: 'deep' } }))
+  assert.equal(ok.statusCode, 200)
+  assert.equal(saved.length, 1)
+  assert.equal(saved[0].knowledgeLevel, 'deep')
+  assert.equal(ok.body().ok, true)
+
+  // 未知 id 必须被拒：否则前端拼错就会被当成「切档成功」。
+  const bad = await call(handler, jsonReq({ url: '/preset', body: { id: 'ultra' } }))
+  assert.equal(bad.statusCode, 400)
+  assert.equal(saved.length, 1, '被拒的请求不许写盘')
+
+  // 空 body 也不能通过。
+  const empty = await call(handler, jsonReq({ url: '/preset', body: {} }))
+  assert.equal(empty.statusCode, 400)
+})
+
+test('POST /preview really builds the prompt text and reflects draft edits', async () => {
+  const { deps } = serverDeps()
+  const handler = createConfigServer(deps)
+
+  const plain = await call(handler, jsonReq({ url: '/preview', body: {} }))
+  assert.equal(plain.statusCode, 200)
+  const body = plain.body()
+  assert.equal(body.ok, true)
+  // 预览必须回真实构建出来的段落，而不是占位文案。
+  assert.equal(body.preview.section, 'LEVEL=guided')
+  assert.ok(body.sample.zh.length > 0, '要带上示例动作原文')
+
+  // 草稿字段生效（用户在面板上改了还没保存时，预览要能体现）。
+  const drafted = await call(handler, jsonReq({ url: '/preview', body: { overrides: { knowledgeLevel: 'deep' } } }))
+  assert.equal(drafted.body().preview.section, 'LEVEL=deep')
+
+  // 草稿里塞未知字段必须 400，不能让用户以为「预览了不存在的东西」。
+  const bad = await call(handler, jsonReq({ url: '/preview', body: { overrides: { nope: 1 } } }))
+  assert.equal(bad.statusCode, 400)
+})
+
+test('preset and preview reject GET with 405', async () => {
+  const { deps } = serverDeps()
+  const handler = createConfigServer(deps)
+  for (const url of ['/preset', '/preview']) {
+    const res = await call(handler, fakeReq({ method: 'GET', url, headers: LOOPS }))
+    assert.equal(res.statusCode, 405, `${url} 应只允许 POST`)
+  }
+})
+
