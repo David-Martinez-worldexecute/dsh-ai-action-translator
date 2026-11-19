@@ -5,6 +5,33 @@
 
 ## [未发布]
 
+## [0.6.0] — 2026-11-19
+
+### 新增
+
+- **动作时间线（`timeline` / `timelineSize`，默认开 / 40 条）**：把这一路的工具调用按时间排成只读列表，每条带分类、耗时、成功/失败标记与参数摘要。它**只在面板里回看，绝不注入提示词**，所以看历史不占模型上下文。
+- **术语卡片（`glossary`，默认开）**：16 条词表（`waterfall` / `emit` / `peerDependency` / `inject` / `slot` / `HMR` / `manifest` / ring buffer / atomic write / loopback / `401` / `EPERM` / `link:` / 幂等 / sandbox / token）随提示词注入「第一次出现就解释一句、只解释一次」的规则；表外术语要求按可观察行为现讲，不许编造定义。
+- **失败案例库（`failureBook`，默认开）**：报错按 8 层归档（鉴权 / 权限 / 路径 / 依赖 / 网络 / 服务 / 语法 / 测试 + 未知兜底），文本先归一成签名（小写、数字与路径替换），同一签名只记一条并累计次数，落 `~/.dsh/ai-action-translator/failures.json`。
+- **`GET /activity` 只读路由**：一次返回时间线、汇总、失败案例、分类表与术语表，支持 `?limit=`；`POST` 返回 405。
+- **动作分类器 `lib/classify.js`**：11 类（桌面 / 检索 / Agent / 插件 / 记忆 / 媒体 / 网络 / 任务 / 执行 / 写入 / 读取），`exec` 再细分依赖安装 / 服务控制 / 版本控制。
+- **`scripts/load-smoke.mjs` 假宿主装载冒烟**：用假 ctx 把 `apply()` 完整跑一遍（注册段 → 订阅 `tools/result` → 请求 `/settings` 与 `/activity` → 跑 teardown），CI 里新增 `Load smoke` 步骤。
+- **英文文档**：`docs/DETAIL.en.md` 与 `docs/SKILL.en.md`。
+- **`test/activity.test.mjs`（23 项）**：覆盖分类器、失败分层、时间线只留最新、失败库按签名累计、术语表、`/activity` 路由，以及「时间线不得进提示词」的反向守卫。
+
+### 变更
+
+- 运行时字段 **16 → 20**：`RUNTIME_KEYS`、`FIELD_IDS`、`BOOL_FIELDS`、`SPECIAL_FIELDS`、三档预设、`cordis.patch.yml` 全部同步。
+- `lib/page.js` 新增 `var SPECIAL = ['digestSize', 'timelineSize', 'sensitiveTools']`：把「专用控件字段」的清单放到产品侧声明，守卫测试只核对、不再在测试里抄字段名。
+- 面板与设置页分区各新增「动作回看（只读）」区块：时间线、失败案例库、术语卡片。
+- 版本三处同步 **0.6.0**（`package.json` / `package-lock.json` / `lib/page.js` 的 `PAGE_VERSION`）。
+- 测试 **61 → 84 项**；`npm run check` 覆盖 9 个源文件。
+- README / `docs/DETAIL.md` / `SKILL.md` / locale 同步三新能力；README 路线图勾掉已完成的四项。
+
+### 工程
+
+- CI 的 `verify` 矩阵（Node 20/22/24）新增装载冒烟，挡「代码层面装不起来」。
+- `.gitignore` 继续忽略 `preview/`（截图与临时脚本不进仓库）。
+
 ## [0.5.0] — 2026-11-19
 
 ### 新增

@@ -36,6 +36,9 @@
 |---|---|
 | 动作翻译 | 工具调用前说清「要做什么、为什么、影响」，返回后说清「实际发生了什么、对下一步意味着什么」 |
 | **一步一步解析** | `stepParse`（默认开）：把动作拆成编号小步，每步点明用了什么工具、碰了哪个文件、处在项目哪一层；只拆必要步骤，不冗余复述。这是「看懂 AI 怎么干活」最直接的一层 |
+| **动作时间线** | `timeline`（默认开）：把这一路的工具调用按时间排成一张只读列表，带分类、耗时、成功/失败标记。它**只出现在面板里，不写进提示词**——回看用，不占模型上下文 |
+| **术语卡片** | `glossary`（默认开）：`waterfall`、`peerDependency`、`HMR`、`EPERM` 这类词第一次出现时就地给一句话，只解释一次、不复述。表里没有的词，要求按可观察行为现讲，不许编定义 |
+| **失败案例库** | `failureBook`（默认开）：报错按层归档（鉴权 / 权限 / 路径 / 依赖 / 网络 / 服务 / 语法 / 测试），同一类只记一条并累计次数。下次遇到同类，先翻这里看「上次是什么层、怎么修的」 |
 | **中途介入** | 每完成一个可验证小步就标出「现在可以打断我」，并说明此刻改方向的最小代价；你换目标时它先复述放弃了什么 |
 | 分级讲解 | `knowledgeLevel` 四档：`plain` 全白话、`guided` 边做边学、`balanced` 白话+术语+机制、`deep` 追到调用链 |
 | 项目地图 | 用固定六层地图定位每个动作：入口/启动点 → 配置与依赖 → 核心模块 → 工具/服务边界 → 输出/界面 → 测试与验证 |
@@ -163,6 +166,10 @@ Rename-Item ~\.dsh\plugins\dsh-ai-action-translator.bak-<时间戳> ~\.dsh\plugi
 | `persona` | string ≤600 | 中性学习搭档 | 讲解者风格；空值用内置默认 |
 | `observeTools` | bool | `true` | 是否只读观察工具结果 |
 | `digestSize` | int 0–50 | `8` | 最近动作摘要条数 |
+| `timeline` | bool | `true` | 是否记录完整动作时间线（只给面板回看，不写进提示词） |
+| `timelineSize` | int 0–200 | `40` | 时间线保留条数；`0` = 不记录 |
+| `glossary` | bool | `true` | 是否在提示词里注入「术语第一次出现就解释一句」的规则与词表 |
+| `failureBook` | bool | `true` | 是否把失败动作按层归档到本地（`~/.dsh/ai-action-translator/failures.json`） |
 | `sensitiveTools` | string[] | 见 YAML | 标记为敏感的工具有前缀匹配 |
 
 ## 图形配置面板
@@ -192,38 +199,44 @@ Rename-Item ~\.dsh\plugins\dsh-ai-action-translator.bak-<时间戳> ~\.dsh\plugi
 
 ```bash
 npm ci     # 首次需要，按 lock 精确安装开发依赖
-npm run verify  # 语法检查 + 61 项测试 + 隐私扫描
+npm run verify  # 语法检查 + 84 项测试 + 隐私扫描
 ```
 
 单独跑：
 
 ```bash
-npm run check           # 6 个源文件语法检查
-npm test                # 61 项测试
+npm run check           # 9 个源文件语法检查
+npm test                # 84 项测试
 npm run check:privacy   # 扫描是否误提交本机路径/密钥
+node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具事件 / 面板应答 / 卸载清理
 ```
 
-三组测试的分工：
+四组测试的分工：
 
 - `test/plugin.test.mjs` —— 插件契约：`apply()` 注册了哪些段、默认值、`enabled: false` 时不注册
 - `test/modules.test.mjs` —— 服务端模块：store 原子写入与损坏隔离、回环围栏、路由与 400、日志环，以及文档回归（README/SKILL/page 不得教用户手敲那个必然 401 的网址）
 - `test/client.test.mjs` —— 浏览器半身：用 `node:vm` 造假浏览器加载 `client.js`，断言字段清单与后端完全一致、`toPayload` 只发白名单字段、坏输入本地挡住、缺宿主服务时只警告不崩
+- `test/activity.test.mjs` —— 动作回看：分类器（11 类，含 exec 的依赖安装 / 服务控制 / 版本控制细分）、失败分层（8 层 + 未知兜底）、时间线只留最新、失败案例库按签名累计、术语表、`/activity` 路由，以及「时间线不得进提示词」的反向守卫
 
 ## 项目结构
 
 ```
 .
 ├── lib/
-│   ├── index.js     # 插件入口：配置 schema、提示词段、面板挂载
+│   ├── index.js     # 插件入口：配置 schema、提示词段、时间线订阅、面板挂载
 │   ├── server.js    # 回环 HTTP 路由、64KB 上限、400 处理
 │   ├── store.js     # 原子写入、损坏隔离
 │   ├── trust.js     # Host / Origin 同源围栏
+│   ├── classify.js  # 动作分类（11 类，exec 再细分依赖安装 / 服务控制 / 版本控制）
+│   ├── glossary.js  # 术语表（16 条）与提示词片段生成
+│   ├── timeline.js  # 时间线环 + 失败分层 + 失败案例库
 │   └── page.js      # 服务端渲染的独立面板
 ├── client.js        # DSH 设置页内嵌分区（浏览器半身）
 ├── cordis.patch.yml # bundle 补丁（安装入口）
 ├── scripts/
-│   └── privacy-check.mjs  # 隐私检查器
-├── test/            # 三组测试
+│   ├── privacy-check.mjs  # 隐私检查器
+│   └── load-smoke.mjs     # 假宿主装载冒烟（CI 里跑）
+├── test/            # 四组测试
 ├── SKILL.md         # 可选的详细学习规则（给 Agent 看的）
 └── README.md
 ```
@@ -232,11 +245,11 @@ npm run check:privacy   # 扫描是否误提交本机路径/密钥
 
 按「对学习者的价值」排，不按实现难度排。
 
-- [ ] **动作时间线** —— 把一轮对话里的工具调用按时间排成可回看的列表（仍只读，不拦截）
-- [ ] **术语卡片** —— 某个术语第一次出现时就地给一句话解释，而不是塞进长段落
-- [ ] **失败案例库** —— 把「报错 → 分层定位 → 下次怎么避免」沉淀成可复用片段（只存本地，不外发）
-- [ ] **英文文档对齐** —— `docs/DETAIL.md` 与 `SKILL.md` 目前只有中文，英文用户只能读 README 摘要
-- [ ] **版本矩阵** —— 在 CI 里对 `dsh.engines.dsh` 声明的下限做一次真实装载验证
+- [x] **动作时间线** —— 把一轮对话里的工具调用按时间排成可回看的列表（仍只读，不拦截；**不写进提示词**）
+- [x] **术语卡片** —— 某个术语第一次出现时就地给一句话解释，而不是塞进长段落（16 条词表 + 「不许编定义」的兜底规则）
+- [x] **失败案例库** —— 把「报错 → 分层定位 → 下次怎么避免」沉淀成可复用片段（只存本地 `failures.json`，不外发）
+- [x] **英文文档对齐** —— 新增 `docs/DETAIL.en.md` 与 `docs/SKILL.en.md`
+- [ ] **版本矩阵** —— 在 CI 里对 `dsh.engines.dsh` 声明的下限做一次**真实装载**验证（目前只有假宿主 smoke，不等于真装进 DSH）
 
 已明确**不做**的：接管工具执行、拦截或改写结果、联网检索、跨项目读文件。理由见上面「它不做什么」。
 
