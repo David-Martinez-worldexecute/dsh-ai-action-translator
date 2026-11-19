@@ -231,7 +231,7 @@ Rename-Item ~\.dsh\plugins\dsh-ai-action-translator.bak-<时间戳> ~\.dsh\plugi
 
 ```bash
 npm ci     # 首次需要，按 lock 精确安装开发依赖
-npm run verify  # 语法检查 + 152 项测试 + 适配层漂移检查 + 隐私扫描
+npm run verify  # 语法检查 + 154 项测试 + 适配层漂移检查 + 隐私扫描
 node scripts/load-smoke.mjs   # 假宿主装载冒烟（可选，单独跑）
 ```
 
@@ -239,7 +239,7 @@ node scripts/load-smoke.mjs   # 假宿主装载冒烟（可选，单独跑）
 
 ```bash
 npm run check           # 19 个源文件语法检查
-npm test                # 152 项测试
+npm test                # 154 项测试
 npm run check:adapters  # 适配层与 lib/guard.js 是否漂移（只比对，不写盘）
 npm run check:privacy   # 扫描是否误提交本机路径/密钥
 node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具事件 / 面板应答 / 卸载清理

@@ -16,7 +16,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { loadPolicy, judge, denyMessage, warnMessage } from './judge.mjs'
-import { summarizeArguments, recordEvent, pruneTimeline, timelinePath } from './timeline.mjs'
+import { summarizeArguments, recordEvent, pruneTimeline, timelinePath, TIMELINE_PRUNE_BYTES } from './timeline.mjs'
 
 /** 读完整 stdin。带超时：有的宿主不关管道，硬等会把整个工具调用挂住。 */
 export function readStdin(stream = process.stdin, timeoutMs = 5000) {
@@ -188,7 +188,9 @@ export async function runRecord(spec, options = {}) {
       redacted,
     })
     // 只有文件真的大了才读全文裁剪：每次工具调用都读几百行，成本比它换来的信息高。
-    if (fs.statSync(file).size > 512 * 1024) pruneTimeline(file)
+    // 阈值取自 timeline.mjs（128 KB ≈ 比 500 行略多）。早先这里写死 512 KB，
+    // 而 500 行才 75–125 KB ——「超 500 行裁旧」那句文档一次都没兑现过。
+    if (fs.statSync(file).size > TIMELINE_PRUNE_BYTES) pruneTimeline(file)
   } catch (error) {
     return { exitCode: 0, stdout: '', stderr: `[aiact] 写时间线失败（${error.message}），不影响本次动作。\n` }
   }

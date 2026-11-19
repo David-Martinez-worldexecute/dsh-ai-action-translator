@@ -18,6 +18,17 @@ export const TIMELINE_FILE = 'timeline.jsonl'
 
 /** 超过这个行数就裁掉最旧的，避免一年后几万行 JSONL 把磁盘和眼睛一起拖死。 */
 export const TIMELINE_KEEP = 500
+
+/**
+ * 文件涨到多大才值得去裁一次。
+ *
+ * 这里原来写的是 512 KB，那等于「超 500 行裁旧」永远不触发：一行约 150–250 字节，
+ * 500 行才 75–125 KB，要涨到 512 KB 得两千多行。文档说一套、代码做另一套，
+ * 而两边都不会报错 —— 只有用户某天发现文件很大才会察觉。
+ * 阈值按「略高于 500 行的体量」定，和 TIMELINE_KEEP 说的是同一件事。
+ */
+export const TIMELINE_PRUNE_BYTES = 128 * 1024
+
 const MAX_VALUE = 90
 
 /** 与 lib/index.js 的 summarizeArguments 同一套形状：多了就出问题的那几个键。 */

@@ -83,4 +83,4 @@ npm run verify    # 语法 + 测试 + 隐私扫描
 node scripts/load-smoke.mjs   # 假宿主装载冒烟（可选，单独跑）
 ```
 
-八组测试共 152 项：插件契约 / 服务端模块与文档回归 / 浏览器半身 / 动作回看层（分类器、失败分层、时间线、失败案例库、术语表、`/activity` 路由）/ 事前守门（10 条规则、三种模式、放行通道、静音例外）/ 多 Agent 名册 / 学习练习册 / 多宿主适配（三份 `settings.json` 必须是纯 JSON、真喂 stdin 跑钩子脚本、各家回复信封形状、`PostToolUse` 记账真的写进 `.aiact/timeline.jsonl` 而 `audit` 关着时一行都不写、命令里的 token 与 Bearer 不会明文落盘、`mode: 'off'` 与坏 policy / 坏 stdin 都 fail-open、`_core/` 里不许出现宿主名、生成器幂等）。装载冒烟用假宿主把 `apply()` 完整跑一遍——它会真的走一遍守门放行、名册登记、练习册出卡与两端提示词段，**但不等于**已经装进真实 DSH（那需要重启桌面版）。
+八组测试共 154 项：插件契约 / 服务端模块与文档回归 / 浏览器半身 / 动作回看层（分类器、失败分层、时间线、失败案例库、术语表、`/activity` 路由）/ 事前守门（10 条规则、三种模式、放行通道、静音例外）/ 多 Agent 名册 / 学习练习册 / 多宿主适配（三份 `settings.json` 必须是纯 JSON、真喂 stdin 跑钩子脚本、各家回复信封形状、`PostToolUse` 记账真的写进 `.aiact/timeline.jsonl` 而 `audit` 关着时一行都不写、命令里的 token 与 Bearer 不会明文落盘、`mode: 'off'` 与坏 policy / 坏 stdin 都 fail-open、`_core/` 里不许出现宿主名、生成器幂等）。装载冒烟用假宿主把 `apply()` 完整跑一遍——它会真的走一遍守门放行、名册登记、练习册出卡与两端提示词段，**但不等于**已经装进真实 DSH（那需要重启桌面版）。

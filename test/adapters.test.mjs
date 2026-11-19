@@ -319,3 +319,38 @@ test('secrets inside a command never reach the timeline verbatim', () => {
   assert.equal(events.length, 3)
   assert.ok(events.every((event) => event.redacted === true), '抹过东西的事件必须自报 redacted')
 })
+
+test('pruneTimeline keeps the newest lines, and the threshold is actually reachable', async () => {
+  // 这一条守的是工程级自检抓到的第 3 个 bug：裁剪条件原本写 `size > 512 * 1024`，
+  // 而一行才 150–250 字节 —— 500 行不过 75–125 KB，那个条件永远不成立。
+  // 于是 README 写着「超 500 行裁旧」、代码一次都没裁过，两边都不会报错。
+  const { pruneTimeline, readTimeline, TIMELINE_KEEP, TIMELINE_PRUNE_BYTES } = await import('../adapters/_core/timeline.mjs')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aiact-prune-'))
+  const file = path.join(dir, 'timeline.jsonl')
+  const total = TIMELINE_KEEP + 100
+  const lines = Array.from({ length: total }, (_, i) =>
+    JSON.stringify({ at: `2026-11-19T00:00:00.${String(i).padStart(3, '0')}Z`, tool: 'Bash', summary: `command=npm test --run ${i}`, redacted: false }),
+  )
+  fs.writeFileSync(file, `${lines.join('\n')}\n`, 'utf8')
+
+  // 关键断言：这个体量必须**够得着**阈值。够不着，裁剪就是一句不会发生的话。
+  assert.ok(
+    fs.statSync(file).size < TIMELINE_PRUNE_BYTES,
+    '阈值必须小于正常行数体量，否则「超 500 行裁旧」永不触发',
+  )
+
+  assert.equal(pruneTimeline(file), 100)
+  const kept = readTimeline(file)
+  assert.equal(kept.length, TIMELINE_KEEP)
+  assert.match(kept.at(-1).summary, new RegExp(`--run ${total - 1}$`), '保留的必须是最新的那些')
+})
+
+test('a timeline under the keep limit is left untouched', async () => {
+  const { pruneTimeline } = await import('../adapters/_core/timeline.mjs')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aiact-prune-'))
+  const file = path.join(dir, 'timeline.jsonl')
+  fs.writeFileSync(file, `${JSON.stringify({ at: 't', tool: 'Bash', summary: 'x', redacted: false })}\n`, 'utf8')
+  const before = fs.readFileSync(file, 'utf8')
+  assert.equal(pruneTimeline(file), 0, '没超上限时不该动文件')
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})

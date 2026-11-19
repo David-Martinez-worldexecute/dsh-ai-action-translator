@@ -13,7 +13,7 @@
 - **宿主无关核心（`adapters/_core/`）**：`policy.json`（由 `lib/guard.js` 导出，10 条规则 / 62 条正则 / 13 个只读工具名）、`judge.mjs`（判定器，与 `evaluateGuard` 逐条对齐，额外支持 `mcp__xxx__*` 这类前缀放行）、`prompt.mjs`（中英双语提示词段，`guard` 状态必须由调用方传，不猜）、`timeline.mjs`（只追加的脱敏事件日志）、`hook.mjs`（三档回复信封 `top` / `nested` / `plain` 的运行时）。**`_core/` 里不许出现任何宿主名，有测试扫。**
 - **两个生成器**：`tools/build-policy.mjs`（`lib/guard.js` → `policy.json`，`--check` 比对漂移）、`tools/build-adapters.mjs`（渲染四家薄壳 + 总入口 README，`--check` 逐字节比对）。产物共 16 个文件，全部带 `GENERATED` 头注释。
 - **新脚本**：`npm run build:policy` / `npm run build:adapters` / `npm run check:adapters`；`npm run verify` 现在会额外跑一次适配层漂移检查。
-- **事后时间线已接线（默认关）**：`_core/hook.mjs` 新增 `runRecord()`，三个有钩子的宿主都在 `settings.json` 里挂了 `PostToolUse`（command 末尾带 ` record`；**不写 matcher**，靠「省略 matcher = 匹配全部」覆盖所有工具）；`.aiact/config.json` 里 `"audit": true` 才写入 `.aiact/timeline.jsonl`，超过 500 行裁掉最早的，文件大于 512 KB 才触发裁剪。`audit` 是**独立开关**：想回看不必先开拦截，开了拦截也不会被顺手写一堆日志。
+- **事后时间线已接线（默认关）**：`_core/hook.mjs` 新增 `runRecord()`，三个有钩子的宿主都在 `settings.json` 里挂了 `PostToolUse`（command 末尾带 ` record`；**不写 matcher**，靠「省略 matcher = 匹配全部」覆盖所有工具）；`.aiact/config.json` 里 `"audit": true` 才写入 `.aiact/timeline.jsonl`，文件涨到约 128 KB（比 500 行略多）时裁到最近 500 行。`audit` 是**独立开关**：想回看不必先开拦截，开了拦截也不会被顺手写一堆日志。
 
 ### 修复
 
@@ -24,10 +24,11 @@
 - **提示词里的守门段缺前提**：生成时按「有钩子」就写「守门是开着的」，而 `readConfig` 的默认是 `mode: 'off'`。补了前提句：「`mode` 不是 `off` 才算开着；文件不存在或写着 `off`，就什么都没在拦，那种状态下不许说你拦下了风险。」
 - **时间线会把密钥明文写进磁盘**：`summarizeArguments` 原本只按**键名**判断敏感（`token` / `password` / …），于是键名是 `command` 时，值里的 `--token=supersecret`、`Authorization: Bearer …` 全部原样落盘。现在对每个字符串值再跑一遍 `SCRUB_RULES`，命中就改写并置 `redacted: true`。实测三条：`npm test --token=***`、`Authorization: Bearer ***`、`https://***:***@github.com/…`。
 - **`Bearer` 被当成值吃掉，真令牌漏在星号后面**：第一版规则把 `Bearer` 整个替换成 `***`，于是它后面的真令牌没人管。现在鉴权值允许带 scheme 前缀（`Bearer|Basic|Token|Digest`），scheme 保留、只吃凭据。
+- **时间线的裁剪阈值永远够不着**：`runRecord` 里写的是 `size > 512 * 1024` 才裁，而一行才 150–250 字节 —— 500 行不过 75–125 KB，要涨到 512 KB 得两千多行。于是 README 写着「超 500 行裁旧」、代码一次都没裁过，两边都不报错。阈值改为 `timeline.mjs` 导出的 `TIMELINE_PRUNE_BYTES = 128 * 1024`（略高于 500 行的体量），并加了一条测试断言「这个阈值必须够得着」。
 
 ### 变更
 
-- 测试 **134 → 152 项**，新增第八组 `test/adapters.test.mjs`（18 项）。
+- 测试 **134 → 154 项**，新增第八组 `test/adapters.test.mjs`（20 项）。
 - `npm run check` 覆盖的源文件 **13 → 19 个**（多了 `_core` 四个模块与两个生成器）。
 - `lib/guard.js` 只多了一个导出（`GUARD_SKIP_TOOLS`，原 `SKIP_TOOLS`），`evaluateGuard` 行为不变。
 
