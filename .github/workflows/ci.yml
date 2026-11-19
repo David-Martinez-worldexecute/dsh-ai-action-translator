@@ -46,6 +46,12 @@ jobs:
       - name: Privacy check
         run: npm run check:privacy
 
+      # 真实装载冒烟：用假宿主把 apply() 完整跑一遍，证明
+      # 「注册提示词段 / 订阅工具事件 / 面板应答 / 卸载清理」这条链路没断。
+      # 它不替代真装进 DSH（那需要桌面版重启），但能挡住「代码层面装不起来」。
+      - name: Load smoke
+        run: node scripts/load-smoke.mjs
+
   package:
     name: Package sanity
     runs-on: ubuntu-latest

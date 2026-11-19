@@ -58,6 +58,10 @@ window.__ModuleLoader__.load({
         'field.actionDigest': '注入摘要',
         'field.digestSize': '摘要条数',
         'field.sensitiveTools': '敏感工具名单',
+        'field.timeline': '完整时间线',
+        'field.timelineSize': '时间线条数',
+        'field.glossary': '术语卡片',
+        'field.failureBook': '失败案例库',
 
         'hint.learningFocus': '只影响讲解重点，不是授权',
         'hint.frameworkMap': '解释里保留「入口→…→测试」六层地图',
@@ -68,11 +72,23 @@ window.__ModuleLoader__.load({
         'hint.observeTools': '记录最近工具动作（纯旁路，不影响执行）',
         'hint.actionDigest': '把「最近动作」写进提示词动态段',
         'hint.digestSize': '取值 0–50',
+        'hint.timeline': '在面板里保留完整动作列表（只给回看，不写进提示词）',
+        'hint.timelineSize': '取值 0–200；0 = 不记录',
+        'hint.glossary': 'waterfall、peerDependency 这类词第一次出现时就地给一句话',
+        'hint.failureBook': '把报错按层归档，下次遇到同类先翻这里',
         'hint.sensitiveTools': '每行一个，支持以 * 结尾的前缀匹配。命中名单的工具，其参数在摘要中只显示「已省略」。',
         'ph.learningFocus': '例：文件读写、Agent 工具循环',
         'ph.persona': '例：温柔耐心的学姐，常用「我们先拆小一点」',
         'ph.sensitiveTools': '每行一个，支持以 * 结尾的前缀匹配',
 
+        'group.activity': '动作回看（只读，不写进提示词）',
+        'activity.timeline': '动作时间线',
+        'activity.failure': '失败案例库',
+        'activity.terms': '术语卡片',
+        'activity.empty': '（还没有记录到动作。跑一轮对话，这里就会按时间列出每个工具调用。）',
+        'activity.failEmpty': '（还没有失败案例。报错会按层归档，同一类只记一条并累计次数。）',
+        'activity.timelineMeta': '共 {n} 条 · 失败 {m} 次 · 上限 {limit}',
+        'activity.failureMeta': '案例 {n} 个 · 累计命中 {m} 次',
         'group.preset': '快捷预设',
         'preset.apply': '套用',
         'preset.applied': '预设已套用并保存。',
@@ -149,6 +165,10 @@ window.__ModuleLoader__.load({
         'field.actionDigest': 'Inject digest',
         'field.digestSize': 'Digest size',
         'field.sensitiveTools': 'Sensitive tools',
+        'field.timeline': 'Full timeline',
+        'field.timelineSize': 'Timeline rows',
+        'field.glossary': 'Term cards',
+        'field.failureBook': 'Failure book',
 
         'hint.learningFocus': 'Affects emphasis only, not authorization',
         'hint.frameworkMap': 'Keep the six-layer map in explanations',
@@ -159,11 +179,23 @@ window.__ModuleLoader__.load({
         'hint.observeTools': 'Record recent tool actions (pure side channel, never affects execution)',
         'hint.actionDigest': 'Write the recent-actions digest into the prompt',
         'hint.digestSize': 'Range 0–50',
+        'hint.timeline': 'Keep the full action list in the panel (for review only, never written into the prompt)',
+        'hint.timelineSize': 'Range 0–200; 0 = do not record',
+        'hint.glossary': 'Give a one-line gloss the first time a term like waterfall or peerDependency appears',
+        'hint.failureBook': 'Archive errors by layer, so the next similar failure starts here',
         'hint.sensitiveTools': 'One per line; a trailing * means prefix match. Matching tools show "omitted" for arguments.',
         'ph.learningFocus': 'e.g. file I/O, agent tool loop',
         'ph.persona': 'e.g. a patient senior who says "let\'s split this smaller"',
         'ph.sensitiveTools': 'One per line; trailing * means prefix match',
 
+        'group.activity': 'Activity review (read-only, never written into the prompt)',
+        'activity.timeline': 'Action timeline',
+        'activity.failure': 'Failure book',
+        'activity.terms': 'Term cards',
+        'activity.empty': '(No actions recorded yet. Run one conversation turn and every tool call will show up here in order.)',
+        'activity.failEmpty': '(No failures yet. Errors are archived by layer; the same kind is recorded once with a running count.)',
+        'activity.timelineMeta': '{n} recorded · {m} failed · cap {limit}',
+        'activity.failureMeta': '{n} cases · {m} hits',
         'group.preset': 'Quick presets',
         'preset.apply': 'Apply',
         'preset.applied': 'Preset applied and saved.',
@@ -221,13 +253,14 @@ window.__ModuleLoader__.load({
       'language', 'detail', 'learningStage', 'knowledgeLevel',
       'stageSummary', 'skillCollaboration', 'frameworkMap', 'stepParse',
       'learningFocus', 'playfulness', 'encouragement', 'persona',
-      'actionDigest', 'digestSize', 'observeTools', 'sensitiveTools',
+      'actionDigest', 'digestSize', 'timeline', 'timelineSize',
+      'glossary', 'failureBook', 'observeTools', 'sensitiveTools',
     ]
 
-    const BOOL_FIELDS = ['frameworkMap', 'stepParse', 'stageSummary', 'skillCollaboration', 'observeTools', 'actionDigest']
+    const BOOL_FIELDS = ['frameworkMap', 'stepParse', 'stageSummary', 'skillCollaboration', 'actionDigest', 'timeline', 'glossary', 'failureBook', 'observeTools']
     const TEXT_FIELDS = ['learningFocus', 'persona']
-    // 这两个字段用专用控件（数字输入 / 多行文本），不走上面三张分类表。
-    const SPECIAL_FIELDS = ['digestSize', 'sensitiveTools']
+    // 这三个字段用专用控件（两个数字输入 + 多行文本），不走上面三张分类表。
+    const SPECIAL_FIELDS = ['digestSize', 'timelineSize', 'sensitiveTools']
 
     /** 下拉字段与候选项：值 → [中文, English]。 */
     const SELECTS = [
@@ -258,6 +291,8 @@ window.__ModuleLoader__.load({
     const PERSONA_LIMIT = 600
     const DIGEST_MIN = 0
     const DIGEST_MAX = 50
+    const TIMELINE_MIN = 0
+    const TIMELINE_MAX = 200
     const REQUEST_TIMEOUT = 8000
 
     /**
@@ -324,6 +359,8 @@ window.__ModuleLoader__.load({
       }
       const raw = Number(source.digestSize)
       form.digestSize = Number.isFinite(raw) ? Math.min(DIGEST_MAX, Math.max(DIGEST_MIN, Math.trunc(raw))) : 8
+      const rawTimeline = Number(source.timelineSize)
+      form.timelineSize = Number.isFinite(rawTimeline) ? Math.min(TIMELINE_MAX, Math.max(TIMELINE_MIN, Math.trunc(rawTimeline))) : 40
       form.sensitiveTools = Array.isArray(source.sensitiveTools)
         ? source.sensitiveTools.filter(item => typeof item === 'string').join('\n')
         : ''
@@ -338,6 +375,8 @@ window.__ModuleLoader__.load({
       for (const entry of SELECTS) payload[entry.id] = String(form[entry.id] ?? entry.options[0][0])
       const size = Number(form.digestSize)
       payload.digestSize = Number.isFinite(size) ? Math.min(DIGEST_MAX, Math.max(DIGEST_MIN, Math.trunc(size))) : 0
+      const timelineSize = Number(form.timelineSize)
+      payload.timelineSize = Number.isFinite(timelineSize) ? Math.min(TIMELINE_MAX, Math.max(TIMELINE_MIN, Math.trunc(timelineSize))) : 0
       payload.sensitiveTools = String(form.sensitiveTools ?? '')
         .split(/\r?\n/)
         .map(line => line.trim())
@@ -351,6 +390,8 @@ window.__ModuleLoader__.load({
       if (String(form.persona ?? '').length > PERSONA_LIMIT) problems.push(`persona ≤ ${PERSONA_LIMIT}`)
       const size = Number(form.digestSize)
       if (!Number.isFinite(size) || size < DIGEST_MIN || size > DIGEST_MAX) problems.push(`digestSize ${DIGEST_MIN}–${DIGEST_MAX}`)
+      const timelineSize = Number(form.timelineSize)
+      if (!Number.isFinite(timelineSize) || timelineSize < TIMELINE_MIN || timelineSize > TIMELINE_MAX) problems.push(`timelineSize ${TIMELINE_MIN}–${TIMELINE_MAX}`)
       return problems
     }
 
@@ -418,6 +459,8 @@ window.__ModuleLoader__.load({
       const [presets, setPresets] = useState([])
       /** 「试一下」返回的真实提示词段落；undefined = 还没点过。 */
       const [preview, setPreview] = useState(undefined)
+      /** 只读活动面板：时间线 / 失败案例库 / 术语表。undefined = 还没拉到。 */
+      const [activity, setActivity] = useState(undefined)
 
       const describe = useCallback((error) => {
         const info = describeError(error)
@@ -441,6 +484,8 @@ window.__ModuleLoader__.load({
           .then(payload => {
             absorb(payload)
             if (!quiet) setFeedback({ ok: true, text: String((payload && payload.feedback) || t('fb.loaded')) })
+            // 活动面板是只读旁路：拉失败只留空面板，不能让配置编辑跟着报错。
+            return api('/activity').then(setActivity).catch(() => {})
           })
           .catch(error => setFeedback({ ok: false, text: `${t('fb.loadFail')}${describe(error)}` }))
           .then(() => { setBusy(false) })
@@ -661,6 +706,13 @@ window.__ModuleLoader__.load({
             id: 'aat-digestSize', type: 'number', min: DIGEST_MIN, max: DIGEST_MAX, step: 1, size: 4, style: S.input,
             value: form.digestSize, onChange: event => set('digestSize', event.target.value),
           }), t('hint.digestSize')),
+          row('timeline', checkbox('timeline'), t('hint.timeline')),
+          row('timelineSize', h('input', {
+            id: 'aat-timelineSize', type: 'number', min: TIMELINE_MIN, max: TIMELINE_MAX, step: 1, size: 4, style: S.input,
+            value: form.timelineSize, onChange: event => set('timelineSize', event.target.value),
+          }), t('hint.timelineSize')),
+          row('glossary', checkbox('glossary'), t('hint.glossary')),
+          row('failureBook', checkbox('failureBook'), t('hint.failureBook')),
           h('div', { style: S.row }, h('label', { style: S.label, htmlFor: 'aat-sensitiveTools' }, t('field.sensitiveTools'))),
           textarea('sensitiveTools', 'ph.sensitiveTools'),
           h('div', { style: S.hint }, t('hint.sensitiveTools')),
@@ -725,6 +777,48 @@ window.__ModuleLoader__.load({
           h('code', { style: S.code }, API_PATH),
         ),
 
+        // ── 动作回看：时间线 / 失败案例 / 术语卡片。只读旁路，从不写进提示词。 ──
+        h('fieldset', { style: S.group },
+          h('legend', { style: S.legend }, t('group.activity')),
+          (() => {
+            const data = activity && typeof activity === 'object' ? activity : {}
+            const rows = Array.isArray(data.timeline) ? data.timeline : []
+            const failures = Array.isArray(data.failures) ? data.failures : []
+            const terms = Array.isArray(data.glossary) ? data.glossary : []
+            const classes = new Map((Array.isArray(data.classes) ? data.classes : []).map(item => [item.id, item.label]))
+            const summary = data.summary || {}
+            const failureSummary = data.failureSummary || {}
+            const fill = (template, values) => Object.keys(values).reduce(
+              (text, key) => text.split(`{${key}}`).join(String(values[key])),
+              String(template),
+            )
+            return h('div', { key: 'activity' },
+              h('div', { style: S.hint }, `${t('activity.timeline')} · ${fill(t('activity.timelineMeta'), {
+                n: summary.total !== undefined ? summary.total : rows.length,
+                m: summary.errors !== undefined ? summary.errors : 0,
+                limit: summary.limit !== undefined ? summary.limit : 0,
+              })}`),
+              h('div', { style: S.logs },
+                rows.length === 0 ? t('activity.empty') : rows.map((entry, index) => h('div', {
+                  key: `tl-${entry.at}-${index}`,
+                  style: entry.isError ? { ...S.logRow, ...S.error } : entry.redacted ? { ...S.logRow, ...S.warn } : S.logRow,
+                }, `${new Date(entry.at).toLocaleTimeString()} [${classes.get(entry.classId) || entry.classId || 'other'}] ${entry.name}${entry.isError ? ' ✗' : ''}${Number.isFinite(entry.durationMs) ? ` ${entry.durationMs}ms` : ''} · ${entry.summary || ''}${entry.redacted ? ' ⚠' : ''}`)),
+              ),
+              h('div', { style: S.hint }, `${t('activity.failure')} · ${fill(t('activity.failureMeta'), {
+                n: failureSummary.cases !== undefined ? failureSummary.cases : failures.length,
+                m: failureSummary.hits !== undefined ? failureSummary.hits : 0,
+              })}`),
+              h('div', { style: S.logs },
+                failures.length === 0 ? t('activity.failEmpty') : failures.map(item => h('div', {
+                  key: `fb-${item.signature}`,
+                  style: { ...S.logRow, ...S.warn },
+                }, `[${item.layer}] ${item.tool} ×${item.count} · ${item.advice}`, item.sample ? h('div', { style: S.hint }, String(item.sample)) : null)),
+              ),
+              terms.length === 0 ? null : h('div', { style: S.hint }, `${t('activity.terms')} · ${terms.slice(0, 8).map(item => `${item.term} — ${item.zh}`).join(' · ')}`),
+            )
+          })(),
+        ),
+
         h('fieldset', { style: S.group },
           h('legend', { style: S.legend }, t('logs')),
           h('div', { style: S.logs },
@@ -760,7 +854,7 @@ window.__ModuleLoader__.load({
     exports.inject = inject
     exports.name = 'ai-action-translator'
     // 无浏览器测试接缝：node:vm 里注入 stub 后可直接检查字段清单与路径解析。
-    exports.__test = { DICT, NS, FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SPECIAL_FIELDS, SELECTS, PERSONA_LIMIT, DIGEST_MIN, DIGEST_MAX, API_PATH, toForm, toPayload, validate, describeError }
+    exports.__test = { DICT, NS, FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SPECIAL_FIELDS, SELECTS, PERSONA_LIMIT, DIGEST_MIN, DIGEST_MAX, TIMELINE_MIN, TIMELINE_MAX, API_PATH, toForm, toPayload, validate, describeError }
     return module.exports
   },
 })

@@ -311,7 +311,9 @@ test('every runtime Config field reaches the backend whitelist and the served pa
     assert.ok(found, `lib/page.js 应定义 var ${name} = [...]`)
     for (const item of found[1].matchAll(/'([^']+)'/g)) grouped.push(item[1])
   }
-  const special = ['digestSize', 'sensitiveTools']
+  const specialMatch = /var SPECIAL = \[([^\]]*)\]/.exec(CONFIG_PAGE_HTML)
+  assert.ok(specialMatch, 'lib/page.js 应定义 var SPECIAL = [...]')
+  const special = [...specialMatch[1].matchAll(/'([^']+)'/g)].map(item => item[1])
   assert.deepEqual([...grouped, ...special].sort(), fields.slice().sort())
 })
 

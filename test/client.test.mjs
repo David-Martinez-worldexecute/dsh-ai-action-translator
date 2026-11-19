@@ -152,9 +152,9 @@ test('validate blocks long persona and out-of-range digestSize', () => {
   const { exported } = loadClient()
   const { validate, PERSONA_LIMIT, DIGEST_MAX } = exported.__test
   // 跨 realm 数组不能直接 deepStrictEqual，统一用 length / join 比较。
-  assert.equal(validate({ persona: '', digestSize: 5 }).length, 0)
-  assert.equal(validate({ persona: 'x'.repeat(PERSONA_LIMIT + 1), digestSize: 5 }).length, 1)
-  assert.equal(validate({ persona: '', digestSize: DIGEST_MAX + 1 }).length, 1)
+  assert.equal(validate({ persona: '', digestSize: 5, timelineSize: 40 }).length, 0)
+  assert.equal(validate({ persona: 'x'.repeat(PERSONA_LIMIT + 1), digestSize: 5, timelineSize: 40 }).length, 1)
+  assert.equal(validate({ persona: '', digestSize: DIGEST_MAX + 1, timelineSize: 40 }).length, 1)
 })
 
 test('apply registers a settings.section slot', () => {
