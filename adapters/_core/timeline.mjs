@@ -23,6 +23,39 @@ const MAX_VALUE = 90
 /** 与 lib/index.js 的 summarizeArguments 同一套形状：多了就出问题的那几个键。 */
 const SECRET_KEY_RE = /(pass(word|wd)?|secret|token|api[-_]?key|credential|authorization|cookie|session[-_]?id|private[-_]?key)/i
 
+/**
+ * 值里面也可能有密钥 —— 而且这是更常见的情况。
+ *
+ * 实测踩到的：`{ command: 'npm test --token=supersecret' }` 的键是 `command`（不敏感），
+ * 于是原来的实现原样落盘，`.aiact/timeline.jsonl` 里躺着明文令牌。
+ * 只要看键名就能防住的说法是错的：命令、URL、header 里到处是 `--token=` 这种写法。
+ *
+ * 所以值也要过一遍。规则只认「敏感词 + 分隔符 + 值」这种形态，
+ * 宁窄勿宽：宁可漏掉一种写法，也不要把正常参数糊成星号（那会让时间线失去用处）。
+ */
+const SCRUB_RULES = [
+  // --token=xxx / token: xxx / "password":"xxx" / Authorization: Bearer xxx
+  //
+  // 值前面可能有 scheme 词（Bearer / Basic / Token / Digest），必须**保留它、只吃后面的凭据**。
+  // 第一版没有这段，实测 `Authorization: Bearer abcdef123456` 被替换成
+  // `Authorization: *** abcdef123456` —— 令牌原样留在盘上，看着还像脱敏过了。
+  [
+    /(\b(?:pass(?:word|wd)?|secret|token|api[-_]?key|credential|authorization|cookie|session[-_]?id|private[-_]?key)["']?\s*[=:]\s*)((?:Bearer|Basic|Token|Digest)\s+)?(?:"[^"]*"|'[^']*'|[^\s,;&"'}]+)/gi,
+    '$1$2***',
+  ],
+  [/\b(gh[pousr]_[A-Za-z0-9]{20,})/g, '***'], // GitHub token
+  [/\bsk-[A-Za-z0-9_-]{16,}/g, '***'], // OpenAI 风格
+  [/(Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***'], // 没有敏感词前缀时兜底
+  [/(\/\/)[^/\s:@]+:[^/\s@]+@/g, '$1***:***@'], // https://user:pass@host
+]
+
+/** 把一段文本里的密钥换成 ***。返回 scrub 后的文本；是否改动过由调用方比较得出。 */
+function scrubSecrets(text) {
+  let out = String(text)
+  for (const [pattern, replacement] of SCRUB_RULES) out = out.replace(pattern, replacement)
+  return out
+}
+
 function truncate(value, limit = MAX_VALUE) {
   const text = String(value).replace(/\s+/g, ' ').trim()
   return text.length > limit ? `${text.slice(0, limit - 1)}…` : text
@@ -34,7 +67,11 @@ function truncate(value, limit = MAX_VALUE) {
  */
 export function summarizeArguments(args) {
   if (args === undefined || args === null) return { summary: '', redacted: false }
-  if (typeof args !== 'object') return { summary: truncate(args), redacted: false }
+  if (typeof args !== 'object') {
+    const text = String(args)
+    const safe = scrubSecrets(text)
+    return { summary: truncate(safe), redacted: safe !== text }
+  }
 
   const parts = []
   let redacted = false
@@ -53,7 +90,10 @@ export function summarizeArguments(args) {
       continue
     }
     if (value === undefined) continue
-    parts.push(`${key}=${truncate(value)}`)
+    const raw = String(value)
+    const safe = scrubSecrets(raw)
+    if (safe !== raw) redacted = true
+    parts.push(`${key}=${truncate(safe)}`)
   }
   return { summary: parts.join(' · '), redacted }
 }

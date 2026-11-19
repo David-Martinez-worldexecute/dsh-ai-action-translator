@@ -92,7 +92,7 @@
 |---|---|---|---|
 | Claude Code | ✅ 可阻断 | `CLAUDE.md` | `PreToolUse` 钩子返回 deny |
 | CodeBuddy / WorkBuddy | ✅ 可阻断 | `AGENTS.md` | 同一份钩子，外面多包一层 `hookSpecificOutput` |
-| Qwen Code（千问） | ⚠️ 有钩子，JSON 结构未核实 | `QWEN.md` | 按最保守通路写（退出码 2），装好请自测 |
+| Qwen Code（千问） | ✅ 可阻断 | `QWEN.md` | 官方 hooks 文档确认：入参 `{tool_name, tool_input}`，回 `hookSpecificOutput.permissionDecision` |
 | Codex | ❌ 没有可挂的钩子 | `AGENTS.md` | 只有提示词，**不假装能拦** |
 
 **「动作前拦截」那一列是唯一值得仔细看的地方**：能拦的宿主会在命令真正执行**之前**返回 deny；不能拦的宿主只有提示词，模型可以不理它。这一层**没有**设置面板、侧栏、名册、练习册——它是「动作翻译 + 守门」的移植，不是整个插件的移植。
@@ -231,7 +231,7 @@ Rename-Item ~\.dsh\plugins\dsh-ai-action-translator.bak-<时间戳> ~\.dsh\plugi
 
 ```bash
 npm ci     # 首次需要，按 lock 精确安装开发依赖
-npm run verify  # 语法检查 + 146 项测试 + 适配层漂移检查 + 隐私扫描
+npm run verify  # 语法检查 + 152 项测试 + 适配层漂移检查 + 隐私扫描
 node scripts/load-smoke.mjs   # 假宿主装载冒烟（可选，单独跑）
 ```
 
@@ -239,7 +239,7 @@ node scripts/load-smoke.mjs   # 假宿主装载冒烟（可选，单独跑）
 
 ```bash
 npm run check           # 19 个源文件语法检查
-npm test                # 146 项测试
+npm test                # 152 项测试
 npm run check:adapters  # 适配层与 lib/guard.js 是否漂移（只比对，不写盘）
 npm run check:privacy   # 扫描是否误提交本机路径/密钥
 node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具事件 / 面板应答 / 卸载清理
@@ -254,7 +254,7 @@ node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具
 - `test/guard.test.mjs` —— 事前守门：递归删除 / 关机 / 改权限 / 读凭据 / 破坏性 git 必须命中；装依赖 / 停服务 / 联网 / 覆盖写按 `guardLevel` 分流；`warn` 绝不返回 deny；写系统目录只对写类工具报；带 `quiet` 的规则默认静音、`includeQuiet` 才出声；参数被 JSON 转义过（`C:\\Windows`）时也要认得出
 - `test/agents.test.mjs` —— 多 Agent 名册：身份归一化（`agent.id` 缺失时回落 session header）、字段白名单、`born` / `gone` / `touch` 计数、超上限丢最早、`list()` 返回副本（调用方改不坏内部状态）
 - `test/drill.test.mjs` —— 学习练习册：`drillEvery` 收敛（`null` / `undefined` / 空串算「没给」，不是「给了 0」）、攒够就出卡且同一批只出一张（幂等）、窗口裁剪时已出卡计数跟着回落、卡里只引用真发生过的动作
-- `test/adapters.test.mjs` —— 多宿主适配：三家的 `settings.json` 必须是**纯 JSON**（里面不能有 `//` 注释——宿主 `JSON.parse` 失败时通常「当作没配」，钩子就静默失效了，这条是 0.8.0 真踩过的坑）、真喂 stdin 跑钩子脚本（`rm -rf build` → deny，`npm test` → 零输出）、各家回复信封形状正确（Claude 顶层 / CodeBuddy 套 `hookSpecificOutput` / Qwen 靠退出码 2）、`mode: 'off'` 与坏 policy / 坏 stdin 都 fail-open 且把原因写进 stderr、`_core/` 里不许出现任何宿主名、生成器幂等
+- `test/adapters.test.mjs` —— 多宿主适配：三家的 `settings.json` 必须是**纯 JSON**（里面不能有 `//` 注释——宿主 `JSON.parse` 失败时通常「当作没配」，钩子就静默失效了，这条是 0.8.0 真踩过的坑）、真喂 stdin 跑钩子脚本（`rm -rf build` → deny，`npm test` → 零输出）、各家回复信封形状正确（Claude 顶层 / CodeBuddy 与 Qwen 都套 `hookSpecificOutput`）、`PostToolUse` 记账真的写进 `.aiact/timeline.jsonl` 而 `audit` 关着时一行都不写、命令里的 token 与 Bearer 不会明文落盘、`mode: 'off'` 与坏 policy / 坏 stdin 都 fail-open 且把原因写进 stderr、`_core/` 里不许出现任何宿主名、生成器幂等
 
 ## 项目结构
 

@@ -73,7 +73,10 @@ const ZH = {
   },
   auditOn: {
     title: '### 事后时间线',
-    lines: ['每次工具调用会被追加进 `.aiact/timeline.jsonl`（只记工具名、动作、耗时、脱敏摘要）。用户随时可以回看。'],
+    lines: [
+      '前提：`.aiact/config.json` 里的 `audit` 是 `true`。默认是 `false` —— **那种情况下没有在记任何东西**，别对用户说「已经记下来了」。',
+      '开着的时候，每次工具调用会往 `.aiact/timeline.jsonl` 追加一行（只记工具名、脱敏摘要和时间）。用户随时可以回看。',
+    ],
   },
 }
 
@@ -131,7 +134,10 @@ const EN = {
   },
   auditOn: {
     title: '### Post-hoc timeline',
-    lines: ['Every tool call is appended to `.aiact/timeline.jsonl` (tool name, action class, duration, redacted summary only). The user can review it at any time.'],
+    lines: [
+      'Precondition: `audit` in `.aiact/config.json` is `true`. It defaults to `false` — **in that state nothing is being recorded**, so never tell the user a call "was logged".',
+      'When it is on, every tool call appends one line to `.aiact/timeline.jsonl` (tool name, redacted summary, timestamp only). The user can review it at any time.',
+    ],
   },
 }
 

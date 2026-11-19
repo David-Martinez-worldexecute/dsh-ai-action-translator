@@ -40,7 +40,13 @@ const HOSTS = [
     configDir: '.claude',
     promptFile: 'CLAUDE.md.part',
     targetPrompt: 'CLAUDE.md',
-    hook: { envelope: 'top', event: 'PreToolUse', namePath: ['tool_name'], argsPath: ['tool_input'] },
+    hook: {
+      envelope: 'top',
+      event: 'PreToolUse',
+      recordEvent: 'PostToolUse',
+      namePath: ['tool_name'],
+      argsPath: ['tool_input'],
+    },
     matcher: 'Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit',
     // 官方文档原文：PreToolUse「Before a tool call executes. Can block it」
     evidence: 'PreToolUse 可阻断（官方 hooks 文档）',
@@ -53,7 +59,13 @@ const HOSTS = [
     promptFile: 'AGENTS.md.part',
     targetPrompt: 'AGENTS.md',
     // 两家共用一个文档站与同一套钩子协议，差别只有回复多包一层。
-    hook: { envelope: 'nested', event: 'PreToolUse', namePath: ['tool_name'], argsPath: ['tool_input'] },
+    hook: {
+      envelope: 'nested',
+      event: 'PreToolUse',
+      recordEvent: 'PostToolUse',
+      namePath: ['tool_name'],
+      argsPath: ['tool_input'],
+    },
     matcher: 'Bash|PowerShell|Write|Edit|MultiEdit',
     evidence: 'PreToolUse 可阻断（官方 hooks 文档，27+ 事件）',
     notes: [
@@ -67,15 +79,23 @@ const HOSTS = [
     configDir: '.qwen',
     promptFile: 'QWEN.md.part',
     targetPrompt: 'QWEN.md',
-    // 千问的钩子 JSON 结构本轮没拿到官方原文，所以只用「退出码」这条最保守的通路。
-    hook: { envelope: 'plain', event: 'PreToolUse', namePath: ['tool_name'], argsPath: ['tool_input'] },
+    // 之前这里是 plain + 退出码 2，理由是「JSON 结构没核实」。后来在官方 hooks 文档里
+    // 找到了原文：POST {tool_name, tool_input, ...} in, hookSpecificOutput.permissionDecision out ——
+    // 和 CodeBuddy 是同一套嵌套信封。既然是同一套，就不该让它退到最保守那条路上：
+    // 退出码 2 只在宿主认这个约定时才拦得住，而嵌套 JSON 是文档里写明的。
+    hook: {
+      envelope: 'nested',
+      event: 'PreToolUse',
+      recordEvent: 'PostToolUse',
+      namePath: ['tool_name'],
+      argsPath: ['tool_input'],
+    },
     matcher: 'Bash|PowerShell|Write|Edit',
-    evidence: 'README 明确有 hooks（before/after tool calls），**具体 JSON 结构未核实**',
+    evidence: '官方 hooks 文档：POST `{tool_name, tool_input, …}` in，`hookSpecificOutput.permissionDecision` out',
     notes: [
       '`QWEN.md` 与 `AGENTS.md` 会被自动加载作为项目上下文。',
-      '本目录的钩子配置用的是「退出码 2 = 拦下」这条最保守约定；若你的版本认 JSON，请按官方文档替换。',
+      '官方文档还支持 `type: "http"` 的远程判定服务——本目录**没有**用它：那会把每次工具调用的完整 `tool_input` 发到外部，官方文档自己也提示那是敏感数据。',
     ],
-    todo: true,
   },
   {
     dir: 'codex',
@@ -105,15 +125,27 @@ function hookScript(host) {
   // 用相对路径而不是绝对路径：绝对路径在换机器、换目录后立刻失效，
   // 而钩子失效是静默的 —— 命令照跑，只是不再被拦。
   const coreRel = '../'.repeat(host.configDir.split('/').length + 1) + '.aiact/core/hook.mjs'
-  const lines = [
-    `import { runHook, emit } from '${coreRel}'`,
-    '',
-    `await runHook({`,
+  const specLines = [
     `  envelope: '${spec.envelope}',`,
     `  event: '${spec.event}',`,
     `  namePath: ${JSON.stringify(spec.namePath)},`,
     `  argsPath: ${JSON.stringify(spec.argsPath)},`,
-    `}).then(emit)`,
+  ]
+  // 一个脚本干两件事：守门（PreToolUse）与记账（PostToolUse）。
+  // 为什么不分两个文件：两个文件要各自拼一遍相对路径、各自被 settings 引用一次，
+  // 任何一处写错都只会表现为「其中一个静默不工作」。参数是 `record` 还是空，决定走哪条。
+  const lines = [
+    `import { runHook, runRecord, emit } from '${coreRel}'`,
+    '',
+    'const spec = {',
+    ...specLines,
+    '}',
+    '',
+    "if (process.argv[2] === 'record') {",
+    '  await runRecord(spec).then(emit)',
+    '} else {',
+    '  await runHook(spec).then(emit)',
+    '}',
     '',
   ]
   return lines.join('\n')
@@ -124,21 +156,31 @@ function settingsJson(host) {
   // 这里必须是**纯 JSON**：宿主会用 JSON.parse 读它。之前我在前面加了 `//` 注释行，
   // 那玩意儿在 JSON 里直接 parse 失败 —— 而宿主对坏配置的处理通常是「当作没配」，
   // 于是钩子静默失效，用户却以为开着。要写说明就写进 README，别写进配置文件。
-  const settings = {
-    hooks: {
-      [host.hook.event]: [
-        {
-          matcher: host.matcher,
-          hooks: [{ type: 'command', command }],
-        },
-      ],
-    },
+  const hooks = {
+    [host.hook.event]: [
+      {
+        matcher: host.matcher,
+        hooks: [{ type: 'command', command }],
+      },
+    ],
   }
-  return `${JSON.stringify(settings, null, 2)}\n`
+  // 记账那条：**不写 matcher**，靠「省略 matcher = 匹配全部」这条各家一致的约定。
+  // 之前我在这里想写 `.*|*`，那是把两种语法混在一根字符串里 —— 宿主按正则解释时它是非法量词，
+  // 按通配解释时 `.*` 又不是通配。错法的后果是记账钩子一次都不触发，而且不报错。
+  // 「哪些动作值得回看」由用户在 config 里开 audit 决定，不由 matcher 预先筛掉一半。
+  if (host.hook.recordEvent) {
+    hooks[host.hook.recordEvent] = [
+      {
+        hooks: [{ type: 'command', command: `${command} record` }],
+      },
+    ]
+  }
+  return `${JSON.stringify({ hooks }, null, 2)}\n`
 }
 
 function readme(host, policy) {
   const canBlock = host.hook !== null
+  const canRecord = host.hook?.recordEvent != null
   const lines = [
     `# ${host.title} 适配层`,
     '',
@@ -150,10 +192,15 @@ function readme(host, policy) {
       ? `- **动作前拦截**：命中 ${policy.rules.length} 条高风险规则时把动作挡在执行之前。`
       : '- **动作前拦截：没有**。这个宿主上本项目只提供提示词与（可选的）事后审计。',
     `- **提示词**：把 ${host.targetPrompt} 追加到项目根，让模型按「动作翻译」的格式解释每一步。`,
+    // 时间线之前完全没接线：timeline.mjs 写好了，但没有钩子调用它。
+    // 那等于在 README 里承诺一个不会发生的事，所以这一段必须跟着代码一起出现，且只在这里出现。
+    canRecord
+      ? `- **事后时间线**：可选，默认关。开着的时候每次工具调用会往项目根 \`.aiact/timeline.jsonl\` 追加一行（工具名 + 参数摘要，敏感键落盘成 \`***\`）。`
+      : null,
     '',
     '## 怎么装',
     '',
-  ]
+  ].filter((line) => line !== null)
 
   // 装法按「有没有钩子」分成两条完全不同的路径。之前两种情况共用同一段步骤，
   // 结果在没有钩子的宿主上仍然写着「复制隐藏目录」「去 config.json 里写 mode」——
@@ -167,12 +214,22 @@ function readme(host, policy) {
       '4. 在 `<你的项目>/.aiact/config.json` 里写：',
       '',
       '   ```json',
-      '   { "mode": "warn", "level": "high", "language": "zh" }',
+      canRecord
+        ? '   { "mode": "warn", "level": "high", "language": "zh", "audit": false }'
+        : '   { "mode": "warn", "level": "high", "language": "zh" }',
       '   ```',
       '',
       '   `mode` 三档：`off`（默认，完全不介入）/ `warn`（放行但提醒）/ `deny`（真的拦）。',
-      '',
     )
+    if (canRecord) {
+      lines.push(
+        '',
+        '   `audit` 是**另一个开关**，默认 `false`。改成 `true` 才会开始记时间线 ——',
+        '   守门和记账分开，是因为想回看的人不该被迫先打开拦截，想拦截的人也不该被顺手写一堆日志。',
+        '   打开后每次工具调用会往 `.aiact/timeline.jsonl` 追加一行，超过 500 行会裁掉最早的那些。',
+      )
+    }
+    lines.push('')
   } else {
     lines.push(
       `1. 把 \`${host.promptFile}\` 的内容追加到项目根的 \`${host.targetPrompt}\`。`,
@@ -202,7 +259,7 @@ function readme(host, policy) {
       '## 待核实',
       '',
       canBlock
-        ? '- 本宿主的钩子配置字段以上游文档为准；本目录按最保守的通路写（`plain` 信封 + 退出码 2），装好后请先喂一个 `rm -rf` 试一次，亲眼看它有没有被拦。'
+        ? '- 钩子配置字段以上游文档为准。装好后请先喂一个 `rm -rf` 试一次，**亲眼看它有没有被拦** —— 这类配置坏掉时几乎都不报错。'
         : '- 本宿主**到底有没有可阻断的钩子**还没有核实到官方字段名。核实之前，这个目录只有提示词那一半，不假装能拦。',
       '',
     )
@@ -281,7 +338,11 @@ function indexReadme(policy) {
 }
 
 function promptPart(host, language) {
-  const built = buildPrompt({ language, detail: 'full', guard: host.hook ? 'on' : 'off', audit: false })
+  // audit 传的是「这个宿主有没有记账能力」，不是「用户开没开」。
+  // 提示词里那一段自己带前提（`audit` 是 `true` 才算在记），所以这里传 true 不会变成假承诺；
+  // 而传 false 会让这段话整个消失，用户在 README 里看到「能开时间线」、模型那边却毫不知情。
+  const canRecord = host.hook?.recordEvent != null
+  const built = buildPrompt({ language, detail: 'full', guard: host.hook ? 'on' : 'off', audit: canRecord })
   return `${built.markdown}\n`
 }
 

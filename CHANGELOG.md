@@ -9,29 +9,31 @@
 
 ### 新增
 
-- **多宿主适配层（`adapters/`）**：把同一套判断规则做成四家宿主各自能读的形态——`claude-code/`（`.claude/settings.json` 的 `PreToolUse` + 钩子脚本 + `CLAUDE.md` 段）、`codebuddy/`（同一份钩子外多包一层 `hookSpecificOutput`，一套覆盖 CodeBuddy 与 WorkBuddy）、`qwen-code/`（`QWEN.md` + 钩子，走「退出码 2 = 拦下」的最保守通路）、`codex/`（只有 `AGENTS.md` 提示词段，**没有可挂的钩子**）。**插件本体仍然只适用于 DSH**，这一层是平行的部分能力，不是移植。
+- **多宿主适配层（`adapters/`）**：把同一套判断规则做成四家宿主各自能读的形态——`claude-code/`（`.claude/settings.json` 的 `PreToolUse` + 钩子脚本 + `CLAUDE.md` 段）、`codebuddy/`（同一份钩子外多包一层 `hookSpecificOutput`，一套覆盖 CodeBuddy 与 WorkBuddy）、`qwen-code/`（`QWEN.md` + 钩子，官方 hooks 文档确认的 `hookSpecificOutput.permissionDecision` 嵌套信封）、`codex/`（只有 `AGENTS.md` 提示词段，**没有可挂的钩子**）。**插件本体仍然只适用于 DSH**，这一层是平行的部分能力，不是移植。
 - **宿主无关核心（`adapters/_core/`）**：`policy.json`（由 `lib/guard.js` 导出，10 条规则 / 62 条正则 / 13 个只读工具名）、`judge.mjs`（判定器，与 `evaluateGuard` 逐条对齐，额外支持 `mcp__xxx__*` 这类前缀放行）、`prompt.mjs`（中英双语提示词段，`guard` 状态必须由调用方传，不猜）、`timeline.mjs`（只追加的脱敏事件日志）、`hook.mjs`（三档回复信封 `top` / `nested` / `plain` 的运行时）。**`_core/` 里不许出现任何宿主名，有测试扫。**
 - **两个生成器**：`tools/build-policy.mjs`（`lib/guard.js` → `policy.json`，`--check` 比对漂移）、`tools/build-adapters.mjs`（渲染四家薄壳 + 总入口 README，`--check` 逐字节比对）。产物共 16 个文件，全部带 `GENERATED` 头注释。
 - **新脚本**：`npm run build:policy` / `npm run build:adapters` / `npm run check:adapters`；`npm run verify` 现在会额外跑一次适配层漂移检查。
+- **事后时间线已接线（默认关）**：`_core/hook.mjs` 新增 `runRecord()`，三个有钩子的宿主都在 `settings.json` 里挂了 `PostToolUse`（command 末尾带 ` record`；**不写 matcher**，靠「省略 matcher = 匹配全部」覆盖所有工具）；`.aiact/config.json` 里 `"audit": true` 才写入 `.aiact/timeline.jsonl`，超过 500 行裁掉最早的，文件大于 512 KB 才触发裁剪。`audit` 是**独立开关**：想回看不必先开拦截，开了拦截也不会被顺手写一堆日志。
 
 ### 修复
 
 - **钩子脚本里的 `<PROJECT>` 是字面占位符**：生成的脚本 `import ... from '<PROJECT>/.aiact/core/hook.mjs'` 永远解析失败。改成相对路径 `../../.aiact/core/hook.mjs`——绝对路径在换机器、换目录后立刻失效，而钩子失效是**静默的**。
 - **`settings.json` 不是合法 JSON**：生成器在它前面套了两行 `//` 注释和一个 `$schema_note` 字段，宿主 `JSON.parse` 失败后通常「当作没配」，钩子静默失效而界面看着正常。改成纯 JSON，并加了一条测试专门防它回归。
 - **Codex 的 README 说了不存在的事**：它没有钩子，文档却仍教用户「复制隐藏目录」「去 `.aiact/config.json` 里写 `mode`」，还留着「钩子脚本出错时一律放行」这类描述。装法、边界、待核实三段现在按「有没有钩子」分流，Codex 只有两步，并明说「这里没有任何强制力」。
-- **Qwen Code 的能力被写得比已知的更肯定**：原文档直接写「命中规则时返回 deny」，但它的 hooks JSON 结构尚未核实。改为「按最保守通路写（`plain` 信封 + 退出码 2），装好后请先喂一个 `rm -rf` 自测」。
+- **Qwen Code 的能力先被低估、后经核实上调**：0.8.0 最初写「hooks JSON 结构未核实」，按最保守的「退出码 2」走；后来在官方 hooks 文档里找到原文（POST `{tool_name, tool_input, …}` in，`hookSpecificOutput.permissionDecision` out），与 CodeBuddy 是同一套嵌套信封，已改成 `nested` 并由测试钉住。
 - **提示词里的守门段缺前提**：生成时按「有钩子」就写「守门是开着的」，而 `readConfig` 的默认是 `mode: 'off'`。补了前提句：「`mode` 不是 `off` 才算开着；文件不存在或写着 `off`，就什么都没在拦，那种状态下不许说你拦下了风险。」
+- **时间线会把密钥明文写进磁盘**：`summarizeArguments` 原本只按**键名**判断敏感（`token` / `password` / …），于是键名是 `command` 时，值里的 `--token=supersecret`、`Authorization: Bearer …` 全部原样落盘。现在对每个字符串值再跑一遍 `SCRUB_RULES`，命中就改写并置 `redacted: true`。实测三条：`npm test --token=***`、`Authorization: Bearer ***`、`https://***:***@github.com/…`。
+- **`Bearer` 被当成值吃掉，真令牌漏在星号后面**：第一版规则把 `Bearer` 整个替换成 `***`，于是它后面的真令牌没人管。现在鉴权值允许带 scheme 前缀（`Bearer|Basic|Token|Digest`），scheme 保留、只吃凭据。
 
 ### 变更
 
-- 测试 **134 → 146 项**，新增第八组 `test/adapters.test.mjs`（12 项）。
+- 测试 **134 → 152 项**，新增第八组 `test/adapters.test.mjs`（18 项）。
 - `npm run check` 覆盖的源文件 **13 → 19 个**（多了 `_core` 四个模块与两个生成器）。
 - `lib/guard.js` 只多了一个导出（`GUARD_SKIP_TOOLS`，原 `SKIP_TOOLS`），`evaluateGuard` 行为不变。
 
 ### 还没做（别当成已经能用）
 
-- **事后时间线仍未接线**：`_core/timeline.mjs` 已写好并通过语法检查，但生成的钩子**没有调用它**，所以 `.aiact/timeline.jsonl` 目前不会被写入；提示词里描述它的那一段只在 `audit: true` 时出现，而生成器传的是 `audit: false`，因此不会对用户做出这个承诺。要真上线得再加一条 `PostToolUse` 钩子。
-- **Codex 的钩子字段名未核实**；**Qwen Code 的 hooks JSON 结构未核实**。两者都在各自 README 的「待核实」段里写明，不自称已验证。
+- **Codex 的钩子字段名仍未核实**：官方 `docs/config.md` 取回是空文件、`codex-rs/config.md` 只写着「文档已迁移」、`docs/advanced.md` 是 404，而 `developers.openai.com` 是单页应用（curl 只拿到一个空壳）。所以 `codex/` 至今只有提示词那一半，README 里明说「这里没有任何强制力」，不自称能拦。
 
 ## [0.7.0] — 2026-11-19
 

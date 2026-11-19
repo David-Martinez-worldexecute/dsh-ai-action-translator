@@ -16,6 +16,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { loadPolicy, judge, denyMessage, warnMessage } from './judge.mjs'
+import { summarizeArguments, recordEvent, pruneTimeline, timelinePath } from './timeline.mjs'
 
 /** 读完整 stdin。带超时：有的宿主不关管道，硬等会把整个工具调用挂住。 */
 export function readStdin(stream = process.stdin, timeoutMs = 5000) {
@@ -96,9 +97,21 @@ export function formatVerdict(verdict, spec, language = 'zh') {
   return { stdout: '', stderr: '', exitCode: 0 }
 }
 
-/** 读配置：`.aiact/config.json`。缺了就全用默认（守门 off）。 */
+/** 读配置：`.aiact/config.json`。缺了就全用默认（守门 off、记账 off）。 */
 export function readConfig(file) {
-  const defaults = { language: 'zh', mode: 'off', level: 'high', allowRules: [], allowTools: [], includeQuiet: false, detail: 'brief' }
+  const defaults = {
+    language: 'zh',
+    mode: 'off',
+    level: 'high',
+    allowRules: [],
+    allowTools: [],
+    includeQuiet: false,
+    detail: 'brief',
+    // 事后记账是**独立开关**，默认关：它会在项目根建 `.aiact/timeline.jsonl`。
+    // 跟守门共用一个开关会有两种坏结果：想回看就得被迫开拦截，或者开了拦截就
+    // 被顺手写一堆日志。两件事分开，用户才能只买自己想要的那一半。
+    audit: false,
+  }
   if (!file || !fs.existsSync(file)) return defaults
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -142,6 +155,44 @@ export async function runHook(spec, options = {}) {
 
   const result = formatVerdict(verdict, spec, config.language === 'en' ? 'en' : 'zh')
   return { ...result, verdict }
+}
+
+/**
+ * 跑一次「事后记账」钩子（宿主那侧挂在 PostToolUse 一类事件上）。
+ *
+ * 和 runHook 的区别不是细节，是性质：
+ *   - 它**永远不阻断**，也不读守门规则。动作已经执行完了。
+ *   - 它只做一件事：把「刚才跑了什么」如实追加到 `.aiact/timeline.jsonl`。
+ *   - 它由 `audit` 单独开关，与 `mode` 无关：想回看不必被迫开拦截。
+ *
+ * 失败一律静默降级（写不进去就写 stderr），因为记账是旁路，不是关卡：
+ * 它挂了也不该让用户的命令跟着挂。
+ */
+export async function runRecord(spec, options = {}) {
+  const stdin = options.stdin !== undefined ? options.stdin : await readStdin()
+  const input = parseHookInput(stdin)
+  if (!input) return { exitCode: 0, stdout: '', stderr: '' }
+
+  const configFile = path.resolve(spec.configPath || path.join(process.cwd(), '.aiact', 'config.json'))
+  const config = readConfig(configFile)
+  if (config.audit !== true) return { exitCode: 0, stdout: '', stderr: '' }
+
+  const file = path.resolve(spec.timelinePath || timelinePath(process.cwd()))
+  const { summary, redacted } = summarizeArguments(pickArgs(input, spec))
+
+  try {
+    recordEvent(file, {
+      at: new Date().toISOString(),
+      tool: pickName(input, spec),
+      summary,
+      redacted,
+    })
+    // 只有文件真的大了才读全文裁剪：每次工具调用都读几百行，成本比它换来的信息高。
+    if (fs.statSync(file).size > 512 * 1024) pruneTimeline(file)
+  } catch (error) {
+    return { exitCode: 0, stdout: '', stderr: `[aiact] 写时间线失败（${error.message}），不影响本次动作。\n` }
+  }
+  return { exitCode: 0, stdout: '', stderr: '' }
 }
 
 /** 薄脚本共用的一行收尾：把 stdout/stderr 写出去并按约定退出。 */

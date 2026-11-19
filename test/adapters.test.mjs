@@ -17,7 +17,10 @@ const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 const HOOKED = [
   { dir: 'claude-code', configDir: '.claude', envelope: 'top' },
   { dir: 'codebuddy', configDir: '.codebuddy', envelope: 'nested' },
-  { dir: 'qwen-code', configDir: '.qwen', envelope: 'plain' },
+  // 千问曾经按「退出码 2」写（那时 JSON 结构没核实）。后来在官方 hooks 文档里
+  // 找到原文：POST {tool_name, tool_input, ...} in, hookSpecificOutput.permissionDecision out
+  // —— 和 CodeBuddy 是同一套嵌套信封，所以这里也跟着改成 nested。
+  { dir: 'qwen-code', configDir: '.qwen', envelope: 'nested' },
 ]
 
 /**
@@ -53,9 +56,16 @@ function install(host, config = { language: 'zh', mode: 'deny', level: 'high' })
   return project
 }
 
-function runHookScript(host, project, event) {
+/**
+ * 跑一个宿主装好的钩子脚本。
+ * `mode` 是空（守门 PreToolUse）或 'record'（记账 PostToolUse）——
+ * 同一个脚本靠参数分流，所以同一个入口能测两条路。
+ */
+function runHookScript(host, project, event, mode = '') {
   const script = path.join(host.configDir, 'hooks', 'aiact-guard.mjs')
-  const result = spawnSync(process.execPath, [script], {
+  const argv = [script]
+  if (mode) argv.push(mode)
+  const result = spawnSync(process.execPath, argv, {
     cwd: project,
     input: JSON.stringify(event),
     encoding: 'utf8',
@@ -148,13 +158,32 @@ test('codebuddy hook wraps the same verdict in hookSpecificOutput', () => {
   assert.equal(payload.permissionDecision, undefined, 'nested 信封的字段必须收在里面')
 })
 
-test('the plain envelope blocks with exit code 2 and a human reason on stderr', () => {
+test('qwen-code also uses the nested envelope, not an exit code', () => {
+  // 这条是 0.8.0 收尾时的纠错：千问之前被我按「退出码 2」写进适配层，
+  // 理由是「hooks 的 JSON 结构没核实」。后来在官方文档里找到原文
+  // （POST {tool_name, tool_input, ...} in, hookSpecificOutput.permissionDecision out），
+  // 才发现它和 CodeBuddy 是同一套嵌套信封。
+  // 退出码 2 只在宿主认这个约定时才拦得住，而嵌套 JSON 是文档里写明的 —— 差别是真的。
   const host = HOOKED[2]
   const project = install(host)
   const out = runHookScript(host, project, bashCall('rm -rf build'))
-  assert.equal(out.status, 2)
-  assert.equal(out.stdout, '')
-  assert.match(out.stderr, /ai-action-translator|拦下/)
+  assert.equal(out.status, 0, '嵌套信封走 stdout，退出码必须是 0')
+  const payload = JSON.parse(out.stdout)
+  assert.equal(payload.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.equal(payload.permissionDecision, undefined, 'nested 信封的字段必须收在里面')
+})
+
+test('the plain envelope fallback still blocks with exit code 2', async () => {
+  // 三家真实宿主现在没有谁走 plain 了，所以这条不再通过某个宿主的脚本来测
+  // （那需要虚构一个宿主，等于在测试里编造现实）。
+  // 但 formatVerdict 的 plain 分支还留在代码里：将来若遇到只认「退出码 2」的宿主，
+  // 那就是唯一能用的通路。留一条断言盯着它，别让这段逻辑变成没人测的死角。
+  const { formatVerdict } = await import('../adapters/_core/hook.mjs')
+  const verdict = { action: 'deny', rule: 'delete-recursive', risk: 'high' }
+  const result = formatVerdict(verdict, { envelope: 'plain', event: 'PreToolUse' }, 'zh')
+  assert.equal(result.exitCode, 2)
+  assert.equal(result.stdout, '', 'plain 信封不写 stdout')
+  assert.match(result.stderr, /递归删除|拦下/)
 })
 
 test('mode off means the hook does nothing at all', () => {
@@ -224,4 +253,69 @@ test('the generated settings.json files are not swallowed by .gitignore', () => 
     // `git check-ignore -v` 的第一列是命中的规则；以 `!` 开头表示被否定 → 不忽略。
     assert.match(out.stdout, /^\S*:!/, `${rel} 仍然被 .gitignore 忽略，clone 下来会缺配置文件`)
   }
+})
+
+test('every hooked host also wires a PostToolUse entry that passes record', () => {
+  // 记账是第二个**事件**，不是第二个脚本：同一个 aiact-guard.mjs，靠 argv 里的 `record` 分流。
+  // 两头都要盯：settings 里得真有 PostToolUse，command 末尾得真有 record。
+  // 少任何一头，钩子都不报错、只是永远不记账 —— 这类失败没有声音。
+  for (const host of HOOKED) {
+    const file = path.join(ADAPTERS, host.dir, host.configDir, 'settings.json')
+    const settings = readJson(file)
+    const entries = settings.hooks?.PostToolUse
+    assert.ok(Array.isArray(entries) && entries.length === 1, `${host.dir} 必须在 PostToolUse 上挂一条记账钩子`)
+    assert.equal(entries[0].hooks?.[0]?.command, `node ${host.configDir}/hooks/aiact-guard.mjs record`)
+    // 记账那条刻意不写 matcher：靠各家「省略 matcher = 匹配全部」的约定。
+    assert.equal(entries[0].matcher, undefined, '记账要覆盖所有工具，别写 matcher')
+  }
+})
+
+test('a recorded event lands in .aiact/timeline.jsonl when audit is on', () => {
+  const host = HOOKED[0]
+  const project = install(host, { language: 'zh', mode: 'deny', level: 'high', audit: true })
+  const out = runHookScript(host, project, bashCall('npm test'), 'record')
+  assert.equal(out.status, 0, `记账永远不该阻断：${out.stderr}`)
+  assert.equal(out.stdout, '', '记账不往 stdout 写东西 —— 那会被宿主当成判定结果')
+
+  const timeline = path.join(project, '.aiact', 'timeline.jsonl')
+  assert.ok(fs.existsSync(timeline), 'audit 开着的时候必须真的落一行（接线之前这里是不存在的）')
+  const events = fs.readFileSync(timeline, 'utf8').trim().split('\n')
+  assert.equal(events.length, 1)
+  const event = JSON.parse(events[0])
+  assert.equal(event.tool, 'Bash')
+  assert.match(event.summary, /npm test/)
+  assert.equal(event.redacted, false)
+  assert.ok(typeof event.at === 'string' && event.at.length > 0)
+})
+
+test('audit off means the timeline file is never created', () => {
+  const host = HOOKED[0]
+  const project = install(host) // 默认 config 里没有 audit → false
+  const out = runHookScript(host, project, bashCall('npm test'), 'record')
+  assert.equal(out.status, 0)
+  assert.equal(out.stdout, '')
+  assert.ok(!fs.existsSync(path.join(project, '.aiact', 'timeline.jsonl')), 'audit 默认关，就不该留下任何文件')
+})
+
+test('secrets inside a command never reach the timeline verbatim', () => {
+  // 盯的是真实装一遍时抓到的两个泄漏：
+  //   ① 只看键名不够 —— `--token=supersecret` 的键是 command，不是 token；
+  //   ② `Authorization: Bearer <token>` 里的 scheme 被当成值吃掉，真令牌漏在星号后面。
+  // 两条都是「看起来已经脱敏了」的假安全，所以必须用端到端明文搜索来盯。
+  const host = HOOKED[0]
+  const project = install(host, { language: 'zh', mode: 'deny', level: 'high', audit: true })
+  for (const command of [
+    'npm test --token=supersecret',
+    `curl -H 'Authorization: Bearer abcdef123456' https://example.com`,
+    'git clone https://user:hunter2@github.com/a/b',
+  ]) {
+    runHookScript(host, project, bashCall(command), 'record')
+  }
+  const raw = fs.readFileSync(path.join(project, '.aiact', 'timeline.jsonl'), 'utf8')
+  assert.ok(!raw.includes('supersecret'), '--token= 后面的值必须被抹掉')
+  assert.ok(!raw.includes('abcdef123456'), 'Bearer 后面的令牌必须被抹掉')
+  assert.ok(!raw.includes('hunter2'), 'URL 里的密码必须被抹掉')
+  const events = raw.trim().split('\n').map((line) => JSON.parse(line))
+  assert.equal(events.length, 3)
+  assert.ok(events.every((event) => event.redacted === true), '抹过东西的事件必须自报 redacted')
 })
