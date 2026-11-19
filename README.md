@@ -4,7 +4,7 @@
 
 ![AI 动作翻译器配置面板](docs/screenshot.png)
 
-<sub>配置面板实拍：学习区第一行就是「一步一步解析」。图为本地离线预览快照（不联网，数据为演示值）。</sub>
+<sub>配置面板实拍。学习区第一行是「一步一步解析」；「观察与摘要」里多了「学习练习册」；展开「高级选项」能看到事前守门——图里把它开成了「提醒」，所以运行统计多出「守门命中 3 / 守门拦下 1」两张卡，下面的规则清单点一下就能把规则 id 填进放行名单。图为本地离线预览快照（不联网，数据为演示值）。</sub>
 
 **English summary** — This DeepSeek Harness (DSH) plugin injects a fixed instruction section into the agent's system prompt. From then on, the agent explains its own observable actions — tool calls, shell commands, file reads and writes, dependency installs, service starts, and error handling — in beginner-friendly language, before and after each action. It also marks, at every verifiable step, that you can still interrupt and change course, and states what changing your mind would cost at that moment. A small GUI panel personalises how much explanation you get. It registers **no tools**, intercepts **nothing**, makes **no network calls**, reads and writes **none of your project files**, and never executes actions on its own. All of its tests run offline with `npm test`.
 
@@ -212,25 +212,28 @@ Rename-Item ~\.dsh\plugins\dsh-ai-action-translator.bak-<时间戳> ~\.dsh\plugi
 
 ```bash
 npm ci     # 首次需要，按 lock 精确安装开发依赖
-npm run verify  # 语法检查 + 132 项测试 + 隐私扫描
+npm run verify  # 语法检查 + 134 项测试 + 隐私扫描
 node scripts/load-smoke.mjs   # 假宿主装载冒烟（可选，单独跑）
 ```
 
 单独跑：
 
 ```bash
-npm run check           # 9 个源文件语法检查
-npm test                # 84 项测试
+npm run check           # 13 个源文件语法检查
+npm test                # 134 项测试
 npm run check:privacy   # 扫描是否误提交本机路径/密钥
 node scripts/load-smoke.mjs   # 假宿主装载冒烟：注册段 / 订阅工具事件 / 面板应答 / 卸载清理
 ```
 
-四组测试的分工：
+七组测试的分工：
 
 - `test/plugin.test.mjs` —— 插件契约：`apply()` 注册了哪些段、默认值、`enabled: false` 时不注册
-- `test/modules.test.mjs` —— 服务端模块：store 原子写入与损坏隔离、回环围栏、路由与 400、日志环，以及文档回归（README/SKILL/page 不得教用户手敲那个必然 401 的网址）
+- `test/modules.test.mjs` —— 服务端模块：store 原子写入与损坏隔离、回环围栏、路由与 400、日志环，文档回归（README/SKILL/page 不得教用户手敲那个必然 401 的网址），以及「`activity()` 的每个字段都必须穿过 `/activity` 的响应白名单」——这条是因为 0.7.0 真的漏过一次：数据层加了、出口层没加，测试全绿而面板永远拿到 `undefined`
 - `test/client.test.mjs` —— 浏览器半身：用 `node:vm` 造假浏览器加载 `client.js`，断言字段清单与后端完全一致、`toPayload` 只发白名单字段、坏输入本地挡住、缺宿主服务时只警告不崩
 - `test/activity.test.mjs` —— 动作回看：分类器（11 类，含 exec 的依赖安装 / 服务控制 / 版本控制细分）、失败分层（8 层 + 未知兜底）、时间线只留最新、失败案例库按签名累计、术语表、`/activity` 路由，以及「时间线不得进提示词」的反向守卫
+- `test/guard.test.mjs` —— 事前守门：递归删除 / 关机 / 改权限 / 读凭据 / 破坏性 git 必须命中；装依赖 / 停服务 / 联网 / 覆盖写按 `guardLevel` 分流；`warn` 绝不返回 deny；写系统目录只对写类工具报；带 `quiet` 的规则默认静音、`includeQuiet` 才出声；参数被 JSON 转义过（`C:\\Windows`）时也要认得出
+- `test/agents.test.mjs` —— 多 Agent 名册：身份归一化（`agent.id` 缺失时回落 session header）、字段白名单、`born` / `gone` / `touch` 计数、超上限丢最早、`list()` 返回副本（调用方改不坏内部状态）
+- `test/drill.test.mjs` —— 学习练习册：`drillEvery` 收敛（`null` / `undefined` / 空串算「没给」，不是「给了 0」）、攒够就出卡且同一批只出一张（幂等）、窗口裁剪时已出卡计数跟着回落、卡里只引用真发生过的动作
 
 ## 项目结构
 

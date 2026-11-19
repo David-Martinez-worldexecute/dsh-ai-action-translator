@@ -25,6 +25,20 @@
 - **`drillEveryOf(null)` 返回 2 而不是传入的 fallback**：`Number(null) === 0`。null / undefined / 空串现在视为「没给」，回落 fallback。
 - **`validate` 对缺省 `drillEvery` 误报**：老表单没有这个控件时算出 `NaN`，多报一条 problem；现在缺省回落 3（与 `toForm` / `toPayload` 一致，且 `toPayload` 不回落 0——0 会被后端收敛成下限 2）。
 
+### 发布前自检又修掉 9 处
+
+整个 0.7.0 改动做完后，又从 UI 往下逐层重审了一遍（面板控件 → 浏览器半身 → 服务端路由 → 数据层 → 测试夹具），修掉下面这些。它们都属于「测试全绿但用户会看见坏结果」的类型，所以单独记一笔：
+
+- **三个多行文本域从不按行拆分**（`lib/page.js`）：`.split(/\\r?\\n/)` 写成了双反斜杠，正则里那是「字面反斜杠 + r」，匹配不到真实换行；回填时的 `.join('\\n')` 同理。后果是「敏感工具」「规则放行」「工具放行」三个名单每行都不会成为独立条目，回填也不换行。这是 0.5.0 就带进来的老问题——测试只查控件是否存在，抓不到值的行为。
+- **守门监听器按启动期配置决定注册**（`lib/index.js`）：默认 `off` 时根本不注册 `tools/pre-execute`，用户在面板里改成 `warn` / `deny` 后界面显示「已开」却一次都不拦。**「看起来保护了你」比不保护更危险**，改成无条件注册、`off` 在第一行就放行。
+- **侧栏「其中失败」永远显示 0**（`client.js`）：读的是 `summary.failed`，后端字段叫 `errors`。
+- **面板「上限」永远显示 0**（`lib/timeline.js`）：`summary()` 只返回 `total` / `errors` / `byClass`，没有 `limit`。
+- **`/activity` 又漏了一个字段**（`lib/server.js`）：白名单补了 `guardRules` / `agents` / `agentSummary` / `drill` / `assemble`，却漏了自己的 `guard`（模式 / 等级 / 放行名单）。
+- **练习册永远显示「关着」**（`lib/index.js`）：`drill: drill.summary()` 少了 `on`——关着时 `size` 天然是 0，光看计数分不出「还没动作」和「根本没开」。
+- **侧栏调 `fill()` 会 ReferenceError**（`client.js`）：`fill` 原本是 `SettingsSection` 内部的局部 `const`，而 `ActivityPanel` 定义在它之前。提到模块级，一处实现两处用。
+- **`lib/index.js` 两行常量顶格**：纯风格，但和全文件缩进不一致，顺手对齐。
+- **三个测试夹具写了真实本机路径**：`test/agents.test.mjs` 与 `test/guard.test.mjs` 里用了本机用户目录做样例，触发隐私扫描。换成中性的假路径（`.ssh` 字样保留，断言语义不变）。
+
 ### 变更
 
 - 运行时字段 **20 → 28**（`guardMode` / `guardLevel` / `guardAllow` / `guardAllowTools` / `guardQuiet` / `advancedMode` / `drill` / `drillEvery`）。
@@ -33,7 +47,7 @@
 
 ### 工程
 
-- 测试 **84 → 132 项**，七组：插件契约 18 / 模块 30 / 浏览器半身 13 / 动作回看 23 / 守门 21 / 名册 14 / 练习册 13。
+- 测试 **84 → 134 项**，七组：插件契约 18 / 模块 31 / 浏览器半身 14 / 动作回看 23 / 守门 21 / 名册 14 / 练习册 13。
 - `npm run check` 覆盖 **9 → 13 个源文件**（新增 `guard.js` / `agents.js` / `drill.js` / `assemble.js`）。
 - 装载冒烟扩到真的走一遍：订阅三个新事件、喂一个带 agent 的工具结果、调练习册 context 两次验幂等、调装配 context、用删除命令验 `warn` 放行、再重取 `/activity` 验 `live` 归零。
 
