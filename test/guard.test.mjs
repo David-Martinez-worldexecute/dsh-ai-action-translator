@@ -92,7 +92,7 @@ test('later spellings of the same intent hit the same rule', () => {
 test('recognises machine-level and credential-level actions', () => {
   assert.equal(evaluateGuard('pwsh', cmd('shutdown /s /t 0')).rule?.id, 'system-power')
   assert.equal(evaluateGuard('pwsh', cmd('Set-ExecutionPolicy Bypass')).rule?.id, 'permission-change')
-  assert.equal(evaluateGuard('read', { path: 'C:\\Users\\lin\\.ssh\\id_rsa' }).rule?.id, 'credential-read')
+  assert.equal(evaluateGuard('read', { path: 'D:\\keys\\.ssh\\id_rsa' }).rule?.id, 'credential-read')
   assert.equal(evaluateGuard('pwsh', cmd('git push --force origin main')).rule?.id, 'git-destructive')
 })
 

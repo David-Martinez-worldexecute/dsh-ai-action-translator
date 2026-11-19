@@ -111,6 +111,10 @@ window.__ModuleLoader__.load({
       'side.failEmpty': '（还没有失败案例。报错会按层归档。）',
       'side.glossary': '术语卡片',
       'side.glossaryEmpty': '（还没有术语卡片。）',
+      'side.agents': '参与 agent',
+      'side.drill': '学习练习册',
+      'side.drillMeta': '已出卡 {cards} 张 · 待攒 {pending}/{every} 条',
+      'side.drillOff': '（练习册现在是关的。想开启就到设置页 › 高级选项里打开。）',
         'group.advanced': '高级选项（默认收起）',
         'field.advancedMode': '展开高级选项',
         'field.guardMode': '事前守门',
@@ -253,6 +257,10 @@ window.__ModuleLoader__.load({
       'side.failEmpty': '(No failures yet. Errors are archived by layer.)',
       'side.glossary': 'Term cards',
       'side.glossaryEmpty': '(No term cards yet.)',
+      'side.agents': 'Agents involved',
+      'side.drill': 'Learning drills',
+      'side.drillMeta': '{cards} card(s) out · {pending}/{every} actions banked',
+      'side.drillOff': '(Drills are off. Turn them on under Settings › Advanced options.)',
         'group.advanced': 'Advanced options (collapsed by default)',
         'field.advancedMode': 'Show advanced options',
         'field.guardMode': 'Pre-flight guard',
@@ -381,6 +389,16 @@ window.__ModuleLoader__.load({
     const API_PATH = (() => {
       try { return new URL('api/ai-action-translator', document.baseURI).pathname } catch { return '/api/ai-action-translator' }
     })()
+
+    /**
+     * 把「`{key}` 占位符模板」按 values 填好。
+     * 放在模块级而不是某个组件内部：设置页与侧栏面板用的是同一套文案格式，
+     * 各自持有副本会让「同一个占位符在两处表现不一致」变成迟早的事。
+     */
+    function fill(template, values) {
+      return Object.keys(values)
+        .reduce((text, key) => text.split(`{${key}}`).join(String(values[key])), String(template))
+    }
 
     /** 把网络/协议错误转成用户看得懂的一句话，并区分「票据拦截」与「后端缺失」。 */
     function describeError(error) {
@@ -579,6 +597,8 @@ window.__ModuleLoader__.load({
       const glossary = data && Array.isArray(data.glossary) ? data.glossary : []
       const labels = new Map(((data && data.classes) || []).map(entry => [entry.id, entry.label]))
       const summary = (data && data.summary) || {}
+      const agentSummary = (data && data.agentSummary) || {}
+      const drill = (data && data.drill) || {}
 
       return h('div', { style: { ...S.root, padding: 12, maxWidth: '100%', boxSizing: 'border-box' } },
         h('div', { style: S.btns },
@@ -596,9 +616,21 @@ window.__ModuleLoader__.load({
               h('span', { style: S.metricLabel }, t('side.total')),
             ),
             h('div', { style: S.metric },
-              h('span', { style: S.metricValue }, String(Number.isFinite(summary.failed) ? summary.failed : 0)),
+              // 后端时间线的 summary 字段叫 errors（不是 failed）——写错会让侧栏
+              // 「其中失败」永远是 0。缺字段时回落到本地数一遍，不硬编码 0。
+              h('span', { style: S.metricValue }, String(
+                Number.isFinite(summary.errors) ? summary.errors : timeline.filter(item => item.isError === true).length,
+              )),
               h('span', { style: S.metricLabel }, t('side.failed')),
             ),
+            // 多 Agent：没有 agent 数据（宿主没这两个事件）时整块不渲染，
+            // 而不是显示「0 个 agent」——0 会被读成「确实没有 agent 在做」。
+            agentSummary.total
+              ? h('div', { style: S.metric },
+                h('span', { style: S.metricValue }, String(agentSummary.total)),
+                h('span', { style: S.metricLabel }, ` ${t('side.agents')}（${agentSummary.live || 0} 在跑）`),
+              )
+              : null,
           ),
           h('div', { style: S.logs },
             timeline.length === 0
@@ -628,6 +660,22 @@ window.__ModuleLoader__.load({
               : glossary.map(item => h('div', { key: `gl-${item.term}`, style: S.logRow },
                 `${item.term} — ${item.zh || item.en || ''}`)),
           ),
+        ),
+
+        // 练习册：开没开是后端告诉我们的（drill.on），不是这边猜的——
+        // 关着的时候 size 天然是 0，光看计数分不出「还没动作」和「根本没开」。
+        h('fieldset', { style: S.group },
+          h('legend', { style: S.legend }, t('side.drill')),
+          drill.on === true
+            ? h('div', { style: S.metric },
+              h('span', { style: S.metricValue }, String(drill.cards || 0)),
+              h('span', { style: S.metricLabel }, fill(t('side.drillMeta'), {
+                cards: drill.cards || 0,
+                pending: drill.pending || 0,
+                every: drill.every || 0,
+              })),
+            )
+            : h('div', { style: S.hint }, t('side.drillOff')),
         ),
       )
     }
@@ -996,10 +1044,6 @@ window.__ModuleLoader__.load({
             const summary = data.summary || {}
             const agentSummary = data.agentSummary || {}
             const failureSummary = data.failureSummary || {}
-            const fill = (template, values) => Object.keys(values).reduce(
-              (text, key) => text.split(`{${key}}`).join(String(values[key])),
-              String(template),
-            )
             return h('div', { key: 'activity' },
               h('div', { style: S.hint }, `${t('activity.timeline')} · ${fill(t('activity.timelineMeta'), {
                 n: summary.total !== undefined ? summary.total : rows.length,
@@ -1096,7 +1140,7 @@ window.__ModuleLoader__.load({
     exports.inject = inject
     exports.name = 'ai-action-translator'
     // 无浏览器测试接缝：node:vm 里注入 stub 后可直接检查字段清单与路径解析。
-    exports.__test = { DICT, NS, FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SPECIAL_FIELDS, SELECTS, PERSONA_LIMIT, DIGEST_MIN, DIGEST_MAX, TIMELINE_MIN, TIMELINE_MAX, GUARD_ALLOW_MAX, DRILL_MIN, DRILL_MAX, API_PATH, listToText, textToList, toForm, toPayload, validate, describeError }
+    exports.__test = { DICT, NS, FIELD_IDS, BOOL_FIELDS, TEXT_FIELDS, SPECIAL_FIELDS, SELECTS, PERSONA_LIMIT, DIGEST_MIN, DIGEST_MAX, TIMELINE_MIN, TIMELINE_MAX, GUARD_ALLOW_MAX, DRILL_MIN, DRILL_MAX, API_PATH, listToText, textToList, fill, toForm, toPayload, validate, describeError }
     return module.exports
   },
 })

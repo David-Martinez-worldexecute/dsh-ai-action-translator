@@ -87,6 +87,19 @@ test('API_PATH follows a sub-path deployment', () => {
   assert.equal(exported.__test.API_PATH, '/nested/api/ai-action-translator')
 })
 
+test('fill replaces placeholders and never invents a value for a missing one', () => {
+  const { exported } = loadClient()
+  const { fill } = exported.__test
+  assert.equal(typeof fill, 'function')
+  assert.equal(fill('共 {n} 条 · 失败 {m} 次', { n: 3, m: 1 }), '共 3 条 · 失败 1 次')
+  // 同一个占位符出现多次都要换：split/join 才能做到，String.replace 只会换第一个。
+  assert.equal(fill('{a}-{a}', { a: 'x' }), 'x-x')
+  // 没给的占位符原样留着：宁可界面上露出 {m} 让人发现，也不要静默变成 undefined。
+  assert.equal(fill('{a}/{b}', { a: 1 }), '1/{b}')
+  // 模板不是字符串也不该抛，否则一个空文案就能把整个面板炸掉。
+  assert.equal(fill(undefined, { a: 1 }), 'undefined')
+})
+
 test('FIELD_IDS matches the backend RUNTIME_KEYS exactly', () => {
   const { exported } = loadClient()
   const { FIELD_IDS } = exported.__test

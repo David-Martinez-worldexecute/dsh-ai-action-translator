@@ -512,3 +512,28 @@ test('preset and preview reject GET with 405', async () => {
   }
 })
 
+test('every activity payload key crosses the server whitelist', () => {
+  // 背景（0.7.0 真踩过）：lib/index.js 的 activity() 加了字段，而 lib/server.js 的
+  // GET /activity 是「字段白名单转发」——数据层加了、出口层没加，面板上永远是
+  // undefined，测试却全绿（没有一条用例真的从 HTTP 响应里读这些新字段）。
+  // 这里把两边对齐：activity() 的每个顶层键，都必须在 server 的响应对象里出现。
+  const indexSource = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  const serverSource = fs.readFileSync(new URL('../lib/server.js', import.meta.url), 'utf8')
+
+  const activityBody = /activity: \(\) => \{([\s\S]*?)\n {10}\},/.exec(indexSource)
+  assert.ok(activityBody, 'lib/index.js 里应当能定位到 activity: () => { ... },')
+  // 顶层键 = 14 个空格缩进 + 标识符 + 冒号；嵌套对象的子键缩进更深，不会被吃进来。
+  const keys = [...activityBody[1].matchAll(/\n {14}([A-Za-z][A-Za-z0-9]*):/g)].map(match => match[1])
+  assert.ok(keys.length >= 10, `activity() 的顶层字段应有 10 个以上，实际 ${keys.length}`)
+
+  const responseBody = /return send\(200, \{([\s\S]*?)\n {8}\}\)/.exec(serverSource)
+  assert.ok(responseBody, 'lib/server.js 里应当能定位到 /activity 的 return send(200, {...})')
+  for (const key of keys) {
+    assert.match(
+      responseBody[1],
+      new RegExp(`(^|\\s)${key}[,:]`, 'm'),
+      `/activity 没转发 ${key} —— 数据层加了、出口层没加，面板上永远是 undefined`,
+    )
+  }
+})
+

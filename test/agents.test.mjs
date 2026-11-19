@@ -22,16 +22,16 @@ const fakeAgent = (id, cwd) => ({
 /* ───────────────────────── 身份归一化 ───────────────────────── */
 
 test('agentOf reads the direct id and folds the cwd into a short label', () => {
-  const who = agentOf(fakeAgent('abcdef1234567890', 'C:\\Users\\lin\\Desktop\\AI动作及时翻译'))
+  const who = agentOf(fakeAgent('abcdef1234567890', 'C:\\projects\\demo'))
   assert.ok(who)
   assert.equal(who.id, 'abcdef1234567890')
   assert.equal(who.short, 'abcdef12', '短 id 取前 8 位')
-  assert.equal(who.folder, 'AI动作及时翻译')
-  assert.equal(who.label, 'AI动作及时翻译·abcdef12')
+  assert.equal(who.folder, 'demo')
+  assert.equal(who.label, 'demo·abcdef12')
 })
 
 test('agentOf falls back to the session header id when the agent has none', () => {
-  const who = agentOf({ session: { header: { id: 'from-header-id', cwd: '/home/u/proj' } } })
+  const who = agentOf({ session: { header: { id: 'from-header-id', cwd: 'D:\\work\\proj' } } })
   assert.ok(who)
   assert.equal(who.id, 'from-header-id')
   assert.equal(who.folder, 'proj')
