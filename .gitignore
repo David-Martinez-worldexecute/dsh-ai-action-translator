@@ -1,0 +1,33 @@
+# ── 依赖（本插件零运行时依赖；本地调试时可能出现，绝不提交）──
+node_modules/
+
+# ── 日志 ──
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── 环境变量与凭据（任何情况下都不提交）──
+.env
+.env.*
+!.env.example
+.credentials.yaml
+*.pem
+*.key
+
+# ── 构建产物与打包 ──
+coverage/
+dist/
+*.tgz
+
+# ── 操作系统 / 编辑器 ──
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+
+# ── 插件运行期数据（本机状态，不进仓库）──
+settings.json
+.ai-action-translator/

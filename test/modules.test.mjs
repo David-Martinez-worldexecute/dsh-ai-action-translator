@@ -1,0 +1,322 @@
+/**
+ * 新模块行为测试：store / trust / server / page。
+ * 全部走临时目录，绝不触碰用户真实的 ~/.dsh。
+ */
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { Readable } from 'node:stream'
+import { JsonStore } from '../lib/store.js'
+import { rejectionFor, authorityOf, isLoopbackHost } from '../lib/trust.js'
+import { createConfigServer, validateOverrides, sanitizeOverrides, readJson, LogRing, RUNTIME_KEYS } from '../lib/server.js'
+import { CONFIG_PAGE_HTML } from '../lib/page.js'
+
+function tmpHome() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'aat-mod-'))
+}
+
+function fakeReq({ method = 'GET', url = '/', headers = {} } = {}) {
+  const stream = Readable.from([])
+  stream.method = method
+  stream.url = url
+  stream.headers = headers
+  return stream
+}
+
+function fakeRes() {
+  const chunks = []
+  return {
+    statusCode: 0,
+    headers: {},
+    chunks,
+    writeHead(status, headers) {
+      this.statusCode = status
+      this.headers = headers ?? {}
+    },
+    end(body) {
+      if (body !== undefined) chunks.push(Buffer.from(body))
+      this.finished = true
+    },
+    body() {
+      const text = Buffer.concat(chunks).toString('utf8')
+      try { return JSON.parse(text) } catch { return text }
+    },
+  }
+}
+
+const LOOPS = { host: '127.0.0.1:19387' }
+
+/* ───────────────────────── JsonStore ───────────────────────── */
+
+test('JsonStore persists, reloads, and replace() clears back to baseline', () => {
+  const home = tmpHome()
+  const file = path.join(home, 'settings.json')
+  const store = new JsonStore(file, {}, { log: () => {} })
+  assert.deepEqual(store.get(), {})
+  store.update({ language: 'en', persona: 'coach' })
+  assert.equal(store.flush(), true)
+  assert.ok(fs.existsSync(file))
+
+  const second = new JsonStore(file, {}, { log: () => {} })
+  assert.equal(second.get().language, 'en')
+
+  second.replace({})
+  second.flush()
+  const third = new JsonStore(file, {}, { log: () => {} })
+  assert.deepEqual(third.get(), {})
+})
+
+test('JsonStore quarantines a corrupt file instead of crashing', () => {
+  const home = tmpHome()
+  const file = path.join(home, 'settings.json')
+  fs.writeFileSync(file, '{ not valid json !!', 'utf8')
+  const logs = []
+  const store = new JsonStore(file, {}, { log: m => logs.push(m) })
+  assert.deepEqual(store.get(), {})
+  assert.ok(logs.some(m => m.includes('unreadable')))
+  assert.ok(fs.readdirSync(home).some(f => f.includes('.corrupt-')))
+})
+
+/* ───────────────────────── trust fence ───────────────────────── */
+
+test('fence allows loopback with same-origin Origin/Referer', () => {
+  const req = fakeReq({ headers: { host: '127.0.0.1:19387', origin: 'http://127.0.0.1:19387', referer: 'http://127.0.0.1:19387/x' } })
+  assert.equal(rejectionFor(req, undefined), undefined)
+})
+
+test('fence rejects non-loopback host and cross-site origin', () => {
+  assert.equal(rejectionFor(fakeReq({ headers: { host: 'example.com' } }), undefined), 403)
+  assert.equal(
+    rejectionFor(fakeReq({ headers: { host: '127.0.0.1:19387', origin: 'http://evil.example' } }), undefined),
+    403,
+  )
+  assert.equal(
+    rejectionFor(fakeReq({ headers: { host: '127.0.0.1:19387', referer: 'http://evil.example/x' } }), undefined),
+    403,
+  )
+})
+
+test('fence allows the desktop relay Referer and honors connection admission', () => {
+  assert.equal(rejectionFor(fakeReq({ headers: { host: '127.0.0.1:19387', referer: 'dsh-app://app/page' } }), undefined), undefined)
+  assert.equal(rejectionFor(fakeReq({ headers: LOOPS }), { admit: () => ({ rejection: 401 }) }), 401)
+  assert.equal(rejectionFor(fakeReq({ headers: LOOPS }), { admit: () => { throw new Error('boom') } }), 503)
+  assert.equal(rejectionFor(fakeReq({ headers: LOOPS }), { requestRejection: () => 403 }), 403)
+})
+
+test('authorityOf normalizes hosts and isLoopbackHost whitelists only loopback', () => {
+  assert.equal(authorityOf('127.0.0.1:19387').port, '19387')
+  assert.equal(authorityOf('http://localhost:80/x').hostname, 'localhost')
+  assert.equal(isLoopbackHost('[::1]:9000'), true)
+  assert.equal(isLoopbackHost('10.0.0.1'), false)
+})
+
+/* ───────────────────────── route handler ───────────────────────── */
+
+function makeDeps(home) {
+  const state = { language: 'zh', persona: '学姐' }
+  const saved = new JsonStore(path.join(home, 'settings.json'), {}, { log: () => {} })
+  return {
+    connection: undefined,
+    getMerged: () => ({ ...state, ...(saved.get() ?? {}) }),
+    saveOverrides: (patch) => {
+      saved.update(patch)
+      saved.flush()
+      Object.assign(state, patch)
+      return { settings: { ...state, ...(saved.get() ?? {}) }, feedback: '已保存' }
+    },
+    resetOverrides: () => {
+      saved.replace({})
+      Object.keys(state).forEach(k => delete state[k])
+      state.language = 'zh'
+      state.persona = '学姐'
+      return { settings: { ...state }, feedback: '已恢复默认' }
+    },
+    meta: () => ({ savedAt: 1, saveCount: 1 }),
+    health: () => ({ startedAt: 1, digestRows: 0, log: [] }),
+    onRejection: () => {},
+    onError: () => {},
+  }
+}
+
+test('GET /settings returns merged config, meta, and health', async () => {
+  const handler = createConfigServer(makeDeps(tmpHome()))
+  const res = fakeRes()
+  await handler(fakeReq({ url: '/api/ai-action-translator/settings', headers: LOOPS }), res)
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body().ok, true)
+  assert.equal(res.body().settings.language, 'zh')
+  assert.equal(res.headers['cache-control'], 'no-store')
+})
+
+test('GET / and /ui serve the config page HTML', async () => {
+  const handler = createConfigServer(makeDeps(tmpHome()))
+  for (const p of ['/api/ai-action-translator/', '/api/ai-action-translator/ui']) {
+    const res = fakeRes()
+    await handler(fakeReq({ url: p, headers: LOOPS }), res)
+    assert.equal(res.statusCode, 200)
+    assert.match(res.headers['content-type'], /text\/html/)
+    assert.ok(res.body().includes('AI 动作翻译器'))
+  }
+})
+
+test('POST /settings saves valid fields and rejects unknown ones', async () => {
+  const home = tmpHome()
+  const handler = createConfigServer(makeDeps(home))
+
+  // 合法载荷：只含运行时可改字段。
+  const req2 = Readable.from([Buffer.from(JSON.stringify({ persona: '教练', playfulness: 'cheerful' }))])
+  req2.method = 'POST'
+  req2.url = '/api/ai-action-translator/settings'
+  req2.headers = { ...LOOPS, 'content-type': 'application/json' }
+  const res2 = fakeRes()
+  await handler(req2, res2)
+  assert.equal(res2.statusCode, 200)
+  assert.equal(res2.body().ok, true)
+  assert.equal(res2.body().settings.persona, '教练')
+  assert.equal(res2.body().settings.playfulness, 'cheerful')
+  // 落盘验证：新开的 store 能读回刚保存的值。
+  const persisted = new JsonStore(path.join(home, 'settings.json'), {}, { log: () => {} })
+  assert.equal(persisted.get().persona, '教练')
+
+  // 结构性字段 enabled 不允许运行时修改——这是设计内的拒绝。
+  const structural = Readable.from([Buffer.from(JSON.stringify({ enabled: false }))])
+  structural.method = 'POST'
+  structural.url = '/api/ai-action-translator/settings'
+  structural.headers = { ...LOOPS, 'content-type': 'application/json' }
+  const resS = fakeRes()
+  await handler(structural, resS)
+  assert.equal(resS.statusCode, 400)
+  assert.match(resS.body().error, /unknown setting fields.*enabled/)
+
+  // 完全未知的字段同样拒绝。
+  const bad = Readable.from([Buffer.from(JSON.stringify({ hacker: 1 }))])
+  bad.method = 'POST'
+  bad.url = '/api/ai-action-translator/settings'
+  bad.headers = { ...LOOPS, 'content-type': 'application/json' }
+  const res3 = fakeRes()
+  await handler(bad, res3)
+  assert.equal(res3.statusCode, 400)
+  assert.match(res3.body().error, /unknown setting fields/)
+})
+
+test('POST /reset returns baseline settings', async () => {
+  const handler = createConfigServer(makeDeps(tmpHome()))
+  const req = Readable.from([])
+  req.method = 'POST'
+  req.url = '/api/ai-action-translator/reset'
+  req.headers = LOOPS
+  const res = fakeRes()
+  await handler(req, res)
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body().ok, true)
+  assert.equal(res.body().settings.language, 'zh')
+})
+
+test('non-loopback request is fenced before any route logic', async () => {
+  const handler = createConfigServer(makeDeps(tmpHome()))
+  const res = fakeRes()
+  await handler(fakeReq({ url: '/api/ai-action-translator/settings', headers: { host: 'evil.example' } }), res)
+  assert.equal(res.statusCode, 403)
+  assert.equal(res.body().error, 'forbidden')
+})
+
+test('OPTIONS returns 204 with CORS; unknown path 404; wrong method 405', async () => {
+  const handler = createConfigServer(makeDeps(tmpHome()))
+  const opt = fakeRes()
+  await handler(fakeReq({ method: 'OPTIONS', url: '/api/ai-action-translator/settings', headers: LOOPS }), opt)
+  assert.equal(opt.statusCode, 204)
+
+  const notFound = fakeRes()
+  await handler(fakeReq({ url: '/api/ai-action-translator/nope', headers: LOOPS }), notFound)
+  assert.equal(notFound.statusCode, 404)
+
+  const wrong = fakeRes()
+  await handler(fakeReq({ method: 'PUT', url: '/api/ai-action-translator/settings', headers: LOOPS }), wrong)
+  assert.equal(wrong.statusCode, 405)
+})
+
+/* ───────────────────────── sanitize & LogRing ───────────────────────── */
+
+test('sanitizeOverrides drops wrong types and truncates long strings', () => {
+  const out = sanitizeOverrides({
+    persona: 'x'.repeat(1000),
+    learningFocus: '文件读写',
+    digestSize: 3.9,
+    sensitiveTools: ['git', 42, ''],
+    playfulness: 'cheerful',
+    enabled: 'true',
+  })
+  assert.equal(out.persona.length, 600)
+  assert.equal(out.learningFocus, '文件读写')
+  assert.equal(out.digestSize, 3)
+  assert.deepEqual(out.sensitiveTools, ['git'])
+  assert.equal(out.playfulness, 'cheerful')
+  assert.equal(out.enabled, undefined)
+})
+
+test('LogRing keeps a bounded tail', () => {
+  const ring = new LogRing(3)
+  for (let i = 1; i <= 5; i++) ring.push('warn', `w${i}`)
+  assert.equal(ring.rows.length, 3)
+  assert.deepEqual(ring.tail(2).map(r => r.text), ['w4', 'w5'])
+})
+
+test('readJson rejects oversized and malformed bodies', async () => {
+  const big = Readable.from([Buffer.alloc(1024)])
+  await assert.rejects(readJson(big, 512), /too large/)
+
+  const bad = Readable.from([Buffer.from('not json')])
+  await assert.rejects(readJson(bad), (error) => error.status === 400)
+})
+
+test('CONFIG_PAGE_HTML has no CDN or external network references', () => {
+  assert.ok(CONFIG_PAGE_HTML.includes('AI 动作翻译器'))
+  assert.doesNotMatch(CONFIG_PAGE_HTML, /https?:\/\//)
+})
+
+test('RUNTIME_KEYS never contains structural keys', () => {
+  assert.equal(RUNTIME_KEYS.includes('enabled'), false)
+  assert.equal(RUNTIME_KEYS.includes('order'), false)
+})
+
+/**
+ * 文档回归测试。
+ *
+ * 背景：0.2.0 的 README/SKILL/page 都让用户「在浏览器打开
+ * http://127.0.0.1:19387/api/ai-action-translator/」，而这一条路必然被 dsh web 内核的
+ * 票据校验拦成 401 —— 用户照做只会看到报错。这些断言把「说入口」这件事钉死：
+ * 入口必须是设置页分区，必须提到 401 的原因，并且不能出现「本机浏览器打开」这种指令。
+ */
+test('docs point at the GUI settings section, not a typed URL', () => {
+  const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+  assert.match(readme, /打开完整页面/)
+  assert.match(readme, /401/)
+  assert.doesNotMatch(readme, /本机浏览器打开/)
+
+  const skill = fs.readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8')
+  assert.match(skill, /不要建议用户手敲/)
+  assert.match(skill, /打开完整页面/)
+
+  const page = fs.readFileSync(new URL('../lib/page.js', import.meta.url), 'utf8')
+  assert.match(page, /不要手敲/)
+})
+
+test('page version tracks the package version', () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  const page = fs.readFileSync(new URL('../lib/page.js', import.meta.url), 'utf8')
+  const found = /PAGE_VERSION = '([^']+)'/.exec(page)
+  assert.ok(found, 'lib/page.js 应导出 PAGE_VERSION')
+  assert.equal(found[1], pkg.version)
+})
+
+test('package exposes the client half to the DSH web shell', () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(pkg.dsh.manifestVersion, 1)
+  assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml')
+  assert.equal(pkg.dsh.client.platform, 'web')
+  assert.equal(pkg.exports['./client'], './client.js')
+  assert.ok(pkg.files.includes('client.js'))
+  assert.ok(fs.existsSync(new URL('../client.js', import.meta.url)))
+})

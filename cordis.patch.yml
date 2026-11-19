@@ -1,0 +1,19 @@
+# Safe first-stage bundle patch.
+# Installation into an official profile requires explicit user approval.
+- insert:
+    - id: ai-action-translator
+      name: dsh-ai-action-translator
+      config:
+        enabled: true
+        order: 9500
+        language: zh
+        detail: thorough
+        learningStage: framework
+        knowledgeLevel: guided
+        stageSummary: true
+        skillCollaboration: true
+        frameworkMap: true
+        learningFocus: "基础动作翻译、Agent工具循环、项目入口与代码结构"
+        playfulness: gentle
+        encouragement: active
+        persona: "耐心的学习搭档：先用一句人话说清当前动作，再补准确术语和它在项目里的位置；卡住时把问题拆成更小的一步；鼓励只对应真实完成的步骤，不空夸。只解释可观察的事实，不臆测隐藏推理。人物设定只影响表达，不改变命令、代码、工具选择或安全边界。"

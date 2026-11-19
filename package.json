@@ -1,0 +1,70 @@
+{
+  "name": "dsh-ai-action-translator",
+  "version": "0.3.1",
+  "description": "A DSH plugin that turns agent tool calls into beginner-friendly explanations, so learners can follow what the AI is doing and why.",
+  "license": "MIT",
+  "author": "David-Martinez-worldexecute",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "SKILL.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "explainable-ai",
+    "ai-agent",
+    "tool-calls",
+    "beginner",
+    "learning",
+    "education"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/David-Martinez-worldexecute/dsh-ai-action-translator.git"
+  },
+  "homepage": "https://github.com/David-Martinez-worldexecute/dsh-ai-action-translator#readme",
+  "bugs": {
+    "url": "https://github.com/David-Martinez-worldexecute/dsh-ai-action-translator/issues"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  },
+  "scripts": {
+    "test": "node --test test/plugin.test.mjs test/modules.test.mjs test/client.test.mjs",
+    "check": "node --check lib/index.js && node --check lib/server.js && node --check lib/store.js && node --check lib/trust.js && node --check lib/page.js && node --check client.js",
+    "check:privacy": "node scripts/privacy-check.mjs",
+    "verify": "npm run check && npm test && npm run check:privacy"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
