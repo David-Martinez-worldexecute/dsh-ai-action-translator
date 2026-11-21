@@ -1,5 +1,13 @@
 # AI Action Translator · Agent 动作的解释层
 
+<p>
+  <a href="https://www.npmjs.com/package/dsh-ai-action-translator"><img alt="npm" src="https://img.shields.io/npm/v/dsh-ai-action-translator.svg"></a>
+  <a href="https://www.npmjs.com/package/dsh-ai-action-translator"><img alt="npm downloads" src="https://img.shields.io/npm/dm/dsh-ai-action-translator.svg"></a>
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg">
+  <img alt="node" src="https://img.shields.io/badge/node-%3E%3D20-3c873a.svg">
+  <img alt="dsh" src="https://img.shields.io/badge/DeepSeek%20Harness-0.2.2--rc.3-6f42c1.svg">
+</p>
+
 **你的 Agent 改对了代码，但你说不出它为什么这么改。**
 
 这个插件把 Agent 的**动作**留下来并讲成人话：做了什么、失败落在哪一层、这个术语指什么，
