@@ -1,7 +1,7 @@
 {
   "name": "dsh-ai-action-translator",
   "version": "0.8.0",
-  "description": "A DSH plugin that turns agent tool calls into beginner-friendly explanations, so learners can follow what the AI is doing and why.",
+  "description": "A DSH plugin that makes an agent's actions explainable and reviewable: what it did, which layer a failure came from, and what the jargon means — so you can follow the AI and change direction mid-run.",
   "license": "MIT",
   "author": "David-Martinez-worldexecute",
   "type": "module",
@@ -29,9 +29,10 @@
     "explainable-ai",
     "ai-agent",
     "tool-calls",
+    "agent-audit",
+    "decision-log",
     "beginner",
-    "learning",
-    "education"
+    "learning"
   ],
   "repository": {
     "type": "git",
@@ -40,6 +41,10 @@
   "homepage": "https://github.com/David-Martinez-worldexecute/dsh-ai-action-translator#readme",
   "bugs": {
     "url": "https://github.com/David-Martinez-worldexecute/dsh-ai-action-translator/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "dsh": {
     "manifestVersion": 1,

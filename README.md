@@ -1,6 +1,26 @@
-# AI Action Translator · AI 动作翻译器
+# AI Action Translator · Agent 动作的解释层
 
-> A DSH plugin that turns what an AI agent is doing into plain language — and tells you, at every step, that you can still change direction.
+**你的 Agent 改对了代码，但你说不出它为什么这么改。**
+
+这个插件把 Agent 的**动作**留下来并讲成人话：做了什么、失败落在哪一层、这个术语指什么，
+以及此刻你还能怎么改变方向。它不替你操作，只让过程变得可读、可追、可回放。
+
+**安装（一条命令，复制粘贴即可）**
+
+```bash
+npx -y @deepseek-ai/dsh plugin --profile desktop add dsh-ai-action-translator
+```
+
+重启 DSH 生效——右侧栏出现「AI 动作翻译器」即安装成功。
+需要 Node ≥ 20、DSH ≥ 0.2.2-rc.3；其它安装方式（本地开发、离线）见 [§安装](#安装)。
+
+> 路线图：0.8 解决「解释」；0.9 计划解决「复盘」——记录改了什么、为什么选这个方案、
+> 被否掉的方案是什么、失败根因在哪一层。设计稿见 [docs/decisions-replay.md](docs/decisions-replay.md)，
+> **尚未实现**，这里先写清楚边界，免得你以为它已经有了。
+
+**English** — A DSH plugin that makes an agent's actions explainable: what it did, which layer a
+failure came from, what the jargon means, and that you can still change direction mid-run.
+It registers no tools, intercepts nothing, and makes no network calls.
 
 ![AI 动作翻译器配置面板](docs/screenshot.png)
 
@@ -105,7 +125,21 @@
 
 ## 安装
 
-前置条件：已安装 DeepSeek Harness，Node.js ≥ 20。
+前置条件：Node.js ≥ 20（用命令行安装需要 `npx` 与网络）。
+
+### 方式一：一条命令（推荐）
+
+```bash
+npx -y @deepseek-ai/dsh plugin --profile desktop add dsh-ai-action-translator
+```
+
+它会自动建/复用 profile、把包 `pnpm add` 进去，并**把包名登记进该 profile 的
+`dsh.profile.bundles`**——不需要你手改任何 JSON。重启 DSH 后生效。
+
+`--profile` 后面按你自己的 profile 名改（本机有 `desktop` / `web` / `headless` 等，桌面版通常就是 `desktop`）。
+不确定叫什么，可以看 `~/.dsh/profiles/` 下的目录名。
+
+### 方式二：从源码装（本地开发）
 
 ```bash
 git clone https://github.com/David-Martinez-worldexecute/dsh-ai-action-translator.git
@@ -113,7 +147,7 @@ cd dsh-ai-action-translator
 npm ci            # 按 package-lock 精确安装开发依赖（运行期依赖由 DSH 提供）
 ```
 
-### Windows 一键安装（本机）
+### 方式三：Windows 一键同步（改代码时用）
 
 仓库自带 `scripts/install-local.ps1`：把当前工作区同步到 `~/.dsh/plugins/dsh-ai-action-translator`，**先备份旧版本**，再读回校验版本号与三处 `stepParse` 入口（`lib/page.js` / `client.js` / `cordis.patch.yml`），最后做一次语法检查。
 
